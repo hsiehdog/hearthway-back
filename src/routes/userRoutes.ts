@@ -1,10 +1,19 @@
 import { Router } from "express";
-import { getProfile, listSessions } from "../controllers/userController";
+import {
+  changePassword,
+  getProfile,
+  listSessions,
+  signOut,
+  updateDisplayName,
+} from "../controllers/userController";
 import { requireAuth } from "../middleware/authMiddleware";
 
 const router = Router();
 
 router.get("/me", requireAuth, getProfile);
+router.patch("/me", requireAuth, updateDisplayName);
 router.get("/me/sessions", requireAuth, listSessions);
+router.post("/me/change-password", requireAuth, changePassword);
+router.post("/sign-out", requireAuth, signOut);
 
 export default router;

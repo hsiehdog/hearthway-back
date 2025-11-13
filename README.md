@@ -41,10 +41,13 @@ TypeScript + Express backend scaffold that combines PostgreSQL/Prisma persistenc
 | --- | --- | --- | --- |
 | GET | `/health` | Health probe | Public |
 | GET | `/users/me` | Returns the authenticated user record | Better Auth session cookie |
+| PATCH | `/users/me` | Updates the user's display name via Better Auth `updateUser` | Better Auth session cookie |
 | GET | `/users/me/sessions` | Last 20 AI sessions tied to the user | Better Auth session cookie |
+| POST | `/users/me/change-password` | Calls Better Auth `changePassword` to rotate credentials | Better Auth session cookie |
 | POST | `/ai/generate` | Accepts `{ "prompt": string }` and streams an LLM response persisted to the DB | Better Auth session cookie |
+| POST | `/users/sign-out` | Revokes the current Better Auth session and clears cookies | Better Auth session cookie |
 
-Better Auth issues HTTP-only cookies (`better-auth.session_token`, etc.) that the frontend must forward on every request to protected routes. Non-browser clients can store the session cookie manually and send it via the `Cookie` header.
+Better Auth issues HTTP-only cookies (`better-auth.session_token`, etc.) that the frontend must forward on every request to protected routes. Non-browser clients can store the session cookie manually and send it via the `Cookie` header. The profile/password endpoints above simply proxy Better Auth's stock [`updateUser`](https://www.better-auth.com/docs/concepts/users-accounts) and `changePassword` handlers so password hashing and audit trails remain centralized.
 
 ### Better Auth Endpoints
 - The entire Better Auth router is exposed at `/auth/*` (the Express app proxies requests directly to `betterAuth.handler` as recommended in discussion #5578).
