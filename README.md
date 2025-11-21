@@ -1,119 +1,83 @@
-# AI-Ready Backend
+# Hearthway Backend
 
-TypeScript + Express backend scaffold that combines PostgreSQL/Prisma persistence, Better Auth powered authentication, and the Vercel AI SDK for LLM-powered endpoints. Designed to plug into multiple AI-focused products.
+Hearthway gives groups a clear, fair way to manage shared costs. Project Mode helps neighbors, families, clubs, or small teams log expenses, attach receipts, and split them by even/percent/share amounts. Trip Mode brings the same engine to travel with participation-based splits, multi-currency trips, lightweight itineraries, and a clean settlement plan.
 
-## Tech Stack
+This package is the Express + Prisma backend that powers auth, data storage, and the APIs the frontend consumes.
 
-- **Express 5** with Helmet/Cors/Morgan hardening
-- **TypeScript** tooling with `ts-node-dev` for hot reload
-- **Prisma** ORM targeting PostgreSQL (with Better Auth tables baked in)
-- **Better Auth** Prisma adapter for password auth + secure session cookies (per [discussion #5578](https://github.com/better-auth/better-auth/discussions/5578))
-- **Vercel AI SDK** (`ai` + `@ai-sdk/openai`) for LLM calls
+## Tech stack
 
-## Getting Started
+- Express 5 with Helmet/CORS/Morgan hardening
+- TypeScript + `ts-node-dev` for hot reload
+- PostgreSQL + Prisma (Better Auth tables included)
+- Better Auth Prisma adapter for password auth + secure session cookies
+- Vercel AI SDK (`ai` + `@ai-sdk/openai`) ready for LLM-backed helpers (e.g., settlement suggestions, receipt extraction)
 
-1. Install dependencies (pnpm is required):
-   ```bash
-   pnpm install
-   ```
-2. Copy the environment template and fill in secrets:
-   ```bash
-   cp .env.example .env
-   ```
+## Getting started
+
+1) Install dependencies (pnpm is required):
+```bash
+pnpm install
+```
+2) Copy the environment template and fill in secrets:
+```bash
+cp .env.example .env
+```
    - Set `BETTER_AUTH_SECRET` to a long random value.
    - Update `APP_BASE_URL` and `TRUSTED_ORIGINS` so Better Auth can validate callback URLs and allow your frontend origin(s) to exchange cookies.
-3. Apply database migrations (creates the Prisma Client as well):
-   ```bash
-   pnpm prisma:migrate
-   ```
-4. Start the dev server:
-   ```bash
-   pnpm dev
-   ```
-
-## Scripts
-
-- `pnpm dev` – start Express with `ts-node-dev`
-- `pnpm build` – compile to `dist/`
-- `pnpm start` – run the compiled build
-- `pnpm prisma:migrate` – run migrations against the `DATABASE_URL`
-- `pnpm prisma:generate` – regenerate Prisma Client
-
-## API Surface
-
-| Method | Route                       | Description                                                                    | Auth                       |
-| ------ | --------------------------- | ------------------------------------------------------------------------------ | -------------------------- |
-| GET    | `/health`                   | Health probe                                                                   | Public                     |
-| GET    | `/users/me`                 | Returns the authenticated user record                                          | Better Auth session cookie |
-| PATCH  | `/users/me`                 | Updates the user's display name via Better Auth `updateUser`                   | Better Auth session cookie |
-| GET    | `/users/me/sessions`        | Last 20 AI sessions tied to the user                                           | Better Auth session cookie |
-| POST   | `/users/me/change-password` | Calls Better Auth `changePassword` to rotate credentials                       | Better Auth session cookie |
-| POST   | `/ai/generate`              | Accepts `{ "prompt": string }` and streams an LLM response persisted to the DB | Better Auth session cookie |
-| POST   | `/users/sign-out`           | Revokes the current Better Auth session and clears cookies                     | Better Auth session cookie |
-
-Better Auth issues HTTP-only cookies (`better-auth.session_token`, etc.) that the frontend must forward on every request to protected routes. Non-browser clients can store the session cookie manually and send it via the `Cookie` header. The profile/password endpoints above simply proxy Better Auth's stock [`updateUser`](https://www.better-auth.com/docs/concepts/users-accounts) and `changePassword` handlers so password hashing and audit trails remain centralized.
-
-### Endpoint Inputs & Outputs
-
-| Endpoint                    | Method | Request Body                                                                            | Successful Response                                                                                       | Failure Cases                                                                                         |
-| --------------------------- | ------ | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `/health`                   | GET    | _None_                                                                                  | `200 OK` with `{ "status": "ok", "timestamp": "ISO8601" }`                                                | _n/a_                                                                                                 |
-| `/users/me`                 | GET    | _None_                                                                                  | `200 OK` with `{ "user": Express.User }`                                                                  | `401` if no Better Auth session                                                                       |
-| `/users/me`                 | PATCH  | `{ "name": string }`                                                                    | `200 OK` with `{ "status": true, "name": "..." }`                                                         | `400` invalid payload, `401` unauthenticated                                                          |
-| `/users/me/sessions`        | GET    | _None_                                                                                  | `200 OK` with `{ "sessions": AiSession[] }`                                                               | `401` unauthenticated                                                                                 |
-| `/users/me/change-password` | POST   | `{ "currentPassword": string, "newPassword": string, "revokeOtherSessions"?: boolean }` | `200 OK` with Better Auth payload `{ "token": string \| null, "user": {...} }`                            | `400` invalid payload, `401` unauthenticated, `401/400` from Better Auth if current password is wrong |
-| `/ai/generate`              | POST   | `{ "prompt": string }`                                                                  | `200 OK` with `{ "data": { "text": string, "sessionId": string, "model": string, "createdAt": string } }` | `400` invalid body, `401` unauthenticated                                                             |
-| `/users/sign-out`           | POST   | _None_                                                                                  | `200 OK`/`204` plus Better Auth `Set-Cookie` headers clearing the session                                 | `401` if unauthenticated                                                                              |
-
-`AiSession` mirrors the Prisma model that records each LLM interaction. The `/users/me/sessions` response simply wraps the last 20 rows returned by Prisma:
-
-```ts
-type AiSession = {
-  id: string;
-  userId: string;
-  prompt: string;
-  response: string;
-  model: string;
-  createdAt: string; // ISO8601 timestamp
-};
+3) Apply database migrations (creates the Prisma Client as well):
+```bash
+pnpm prisma:migrate
 ```
+4) Start the dev server:
+```bash
+pnpm dev
+```
+The API listens on `PORT` (default `4000`) and exposes Better Auth at `/auth`.
 
-`POST /ai/generate` automatically fetches up to the last five `AiSession` entries for the authenticated user and sends them as structured `{ role, content }` history `messages` (alternating user/assistant turns). The LLM call also sets a custom system prompt and appends the current request body as the latest user message, keeping responses grounded in recent conversation context.
+## Environment
 
-### Better Auth Endpoints
+| Variable | Description |
+| --- | --- |
+| `PORT` | Port for the HTTP server (default 4000). |
+| `DATABASE_URL` | PostgreSQL connection string used by Prisma. |
+| `BETTER_AUTH_SECRET` | Long random string for Better Auth encryption/signing. |
+| `APP_BASE_URL` | Public base URL of this API (used by Better Auth callbacks). |
+| `TRUSTED_ORIGINS` | Comma-separated origins allowed for cross-site credentials (e.g., `http://localhost:3000`). |
+| `OPENAI_API_KEY` | API key for the Vercel AI SDK provider. |
+| `AI_MODEL` | Model name for LLM calls (default `gpt-4o-mini`). |
 
-- The entire Better Auth router is exposed at `/auth/*` (the Express app proxies requests directly to `betterAuth.handler` as recommended in discussion #5578).
-- Use the stock endpoints such as `POST /auth/sign-up/email`, `POST /auth/sign-in/email`, `GET /auth/get-session`, etc.
-- Successful sign-in/sign-up responses include `Set-Cookie` headers for `better-auth.session_token` and its related helpers. These cookies are the only credentials the API expects.
+## API surface (current scaffold)
 
-## Project Structure
+| Method | Route | Purpose | Auth |
+| --- | --- | --- | --- |
+| GET | `/health` | Health probe | Public |
+| GET | `/users/me` | Return the authenticated user record | Better Auth session |
+| PATCH | `/users/me` | Update display name via Better Auth `updateUser` | Better Auth session |
+| GET | `/users/me/sessions` | Last 20 AI sessions for the user | Better Auth session |
+| POST | `/users/me/change-password` | Rotate credentials via Better Auth `changePassword` | Better Auth session |
+| POST | `/users/sign-out` | Revoke the current session and clear cookies | Better Auth session |
+| POST | `/ai/generate` | Example LLM endpoint using Vercel AI SDK and Prisma persistence | Better Auth session |
+
+Better Auth issues HTTP-only cookies (`better-auth.session_token`, etc.) that the frontend must forward on every request to protected routes. The `/auth/*` router proxies directly to Better Auth, so you can use stock endpoints like `POST /auth/sign-up/email` and `POST /auth/sign-in/email`.
+
+## Project structure
 
 ```
 src
-├── app.ts               # Express app wiring
+├── app.ts               # Express app wiring (security, CORS, JSON parsing)
 ├── index.ts             # HTTP server bootstrap
-├── config               # env + runtime flags
+├── config               # env parsing + runtime flags
 ├── controllers          # Route handlers
 ├── middleware           # Auth context + error handlers
-├── routes               # Express routers (auth proxy, health, users, ai)
-├── services             # Domain logic (LLM helpers)
+├── routes               # Auth proxy, health, users, AI routes
+├── services             # Domain logic (LLM helper lives here)
 ├── lib                  # Prisma singleton + Better Auth instance
 └── types                # Express augmentations
 ```
 
-## Vercel AI Usage
+## Hearthway-focused next steps
 
-`aiService.generateResponse` demonstrates how to call the Vercel AI SDK with an OpenAI model. Swap providers/models by editing `AI_MODEL` or by injecting a different client in the service.
-
-## Authentication Flow
-
-1. Call the Better Auth endpoints under `/auth` (e.g., `POST /auth/sign-in/email`).
-2. Let the frontend/browser store the HTTP-only cookies that Better Auth sets. For non-browser clients, capture the `Set-Cookie` response headers and reuse them for subsequent API calls.
-3. Ensure every protected request forwards the cookies (typically via `fetch(..., { credentials: "include" })`). The backend uses `auth.api.getSession({ headers })` to resolve the session and populate `req.user`.
-4. For split frontend/backends, set `TRUSTED_ORIGINS` so Better Auth will accept cross-site cookie requests, matching the pattern from the shared GitHub discussion.
-
-## Next Steps
-
-- Define additional Prisma models if your AI workflows need metadata (projects, datasets, etc.)
-- Layer in streaming responses via `generateTextStream`
-- Deploy behind a process manager (e.g., Vercel, Fly, Railway) and configure `DATABASE_URL` + secrets via your platform
+- Model expense groups, receipts, splits, and settlements in Prisma, with versions for Project Mode and Trip Mode (multi-currency).
+- Add endpoints for expense CRUD, receipt uploads/parsing, balance calculations, and settlement suggestions.
+- Extend `/ai/*` to handle receipt extraction, settlement drafting, and friendly nudges for overdue balances.
+- Tighten CORS to the real frontend origin(s) and configure deployment secrets for your hosting platform.
