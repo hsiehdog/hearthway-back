@@ -57,6 +57,9 @@ The API listens on `PORT` (default `4000`) and exposes Better Auth at `/auth`.
 | POST | `/users/me/change-password` | Rotate credentials via Better Auth `changePassword` | Better Auth session |
 | POST | `/users/sign-out` | Revoke the current session and clear cookies | Better Auth session |
 | POST | `/ai/generate` | Example LLM endpoint using Vercel AI SDK and Prisma persistence | Better Auth session |
+| POST | `/groups` | Create a group and add the creator as the first member | Better Auth session |
+| GET | `/groups/:id` | Fetch a group with members and expenses (requires membership) | Better Auth session |
+| POST | `/expenses` | Create an expense in a group with participants/line items | Better Auth session |
 
 Better Auth issues HTTP-only cookies (`better-auth.session_token`, etc.) that the frontend must forward on every request to protected routes. The `/auth/*` router proxies directly to Better Auth, so you can use stock endpoints like `POST /auth/sign-up/email` and `POST /auth/sign-in/email`.
 
@@ -67,9 +70,9 @@ src
 ├── app.ts               # Express app wiring (security, CORS, JSON parsing)
 ├── index.ts             # HTTP server bootstrap
 ├── config               # env parsing + runtime flags
-├── controllers          # Route handlers
+├── controllers          # Route handlers (auth/users/ai/groups/expenses)
 ├── middleware           # Auth context + error handlers
-├── routes               # Auth proxy, health, users, AI routes
+├── routes               # Auth proxy, health, users, AI, group, and expense routes
 ├── services             # Domain logic (LLM helper lives here)
 ├── lib                  # Prisma singleton + Better Auth instance
 └── types                # Express augmentations
