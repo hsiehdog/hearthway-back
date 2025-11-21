@@ -15,6 +15,40 @@ const getGroupParamsSchema = z.object({
   id: z.string().min(1, "Group id is required"),
 });
 
+const createMemberSchema = z.object({
+  displayName: z.string().min(1, "Display name is required").max(200, "Display name is too long"),
+  email: z.string().email().optional(),
+});
+
+export const listGroups = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError("Unauthorized", 401);
+    }
+
+    const groups = await prisma.group.findMany({
+      where: {
+        members: {
+          some: {
+            userId: req.user.id,
+          },
+        },
+      },
+      include: {
+        members: true,
+        expenses: true,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
+
+    res.json({ groups });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     if (!req.user) {
@@ -89,6 +123,58 @@ export const getGroup = async (req: Request, res: Response, next: NextFunction):
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request", 400, error.flatten()));
+      return;
+    }
+
+    next(error);
+  }
+};
+
+export const addGroupMember = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError("Unauthorized", 401);
+    }
+
+    const { id } = getGroupParamsSchema.parse(req.params);
+    const { displayName, email } = createMemberSchema.parse(req.body);
+
+    const group = await prisma.group.findUnique({
+      where: { id },
+      include: {
+        members: true,
+      },
+    });
+
+    if (!group) {
+      throw new ApiError("Group not found", 404);
+    }
+
+    const isMember = group.members.some((member) => member.userId === req.user?.id);
+    if (!isMember) {
+      throw new ApiError("You are not a member of this group", 403);
+    }
+
+    await prisma.groupMember.create({
+      data: {
+        groupId: id,
+        displayName,
+        email,
+      },
+    });
+
+    const updatedGroup = await prisma.group.findUnique({
+      where: { id },
+      include: {
+        members: true,
+        expenses: true,
+      },
+    });
+
+    res.status(201).json({ group: updatedGroup });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      next(new ApiError("Invalid request body", 400, error.flatten()));
       return;
     }
 

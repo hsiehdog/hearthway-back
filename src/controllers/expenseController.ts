@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { Prisma, SplitType } from "@prisma/client";
+import { Prisma, SplitType, ExpenseStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../middleware/errorHandler";
@@ -20,6 +20,7 @@ const lineItemSchema = z.object({
 const createExpenseSchema = z.object({
   groupId: z.string().min(1, "groupId is required"),
   payerMemberId: z.string().min(1, "payerMemberId is required").optional(),
+  status: z.nativeEnum(ExpenseStatus).optional(),
   amount: z.coerce.number().positive("amount must be positive"),
   currency: z.string().min(1).max(10).default("USD"),
   date: z.coerce.date().optional(),
@@ -47,6 +48,7 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
       date,
       category,
       note,
+      status,
       splitType,
       participants,
       percentMap,
@@ -74,7 +76,7 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
       throw new ApiError("You are not a member of this group", 403);
     }
 
-    let resolvedPayerId = payerMemberId ?? creatorMembership.id;
+    let resolvedPayerId: string | null = payerMemberId ?? null;
     if (payerMemberId) {
       const payerMembership = await prisma.groupMember.findFirst({
         where: { id: payerMemberId, groupId },
@@ -86,6 +88,8 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
 
       resolvedPayerId = payerMembership.id;
     }
+
+    const resolvedStatus = status ?? (resolvedPayerId ? ExpenseStatus.PAID : ExpenseStatus.PENDING);
 
     const participantIds = participants?.map((p) => p.memberId) ?? [];
     const hasDuplicates = new Set(participantIds).size !== participantIds.length;
@@ -112,7 +116,8 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
     const expense = await prisma.expense.create({
       data: {
         groupId,
-        payerId: resolvedPayerId,
+        payerId: resolvedPayerId ?? undefined,
+        status: resolvedStatus,
         amount: new Prisma.Decimal(amount),
         currency,
         date: date ?? new Date(),
