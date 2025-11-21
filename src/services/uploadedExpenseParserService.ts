@@ -57,7 +57,10 @@ Respond ONLY with valid JSON. Schema:
     }
   ]
 }
-If data is missing, use null. Prefer exact totals from the document.`;
+If data is missing, use null. Prefer exact totals from the document.
+Include taxes, shipping, fees, discounts, and similar adjustments as separate line items when present. Use negative totals for discounts.
+When adding those adjustments, set their category to "Adjustments" unless a clearer category is present on the document.
+Do not include subtotal rows as line items; only include actual charges/fees/discounts/taxes/shipping as line items.`; 
 
     const result = await generateText({
       model: openai(env.AI_MODEL),

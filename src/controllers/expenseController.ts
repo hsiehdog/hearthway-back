@@ -15,7 +15,7 @@ const lineItemSchema = z.object({
   category: z.string().max(100).optional(),
   quantity: z.coerce.number().positive().default(1),
   unitAmount: z.coerce.number().nonnegative(),
-  totalAmount: z.coerce.number().nonnegative(),
+  totalAmount: z.coerce.number(),
 });
 
 const expenseParamsSchema = z.object({

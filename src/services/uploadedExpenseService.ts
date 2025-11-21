@@ -123,6 +123,14 @@ export async function uploadExpenseAndCreate({
       currency: "USD",
       date: new Date(),
       note: "Pending receipt parsing",
+      participants: {
+        create: await prisma.groupMember
+          .findMany({
+            where: { groupId },
+            select: { id: true },
+          })
+          .then((members) => members.map((member) => ({ memberId: member.id }))),
+      },
     },
     select: { id: true, groupId: true },
   });
