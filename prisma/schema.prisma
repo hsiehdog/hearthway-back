@@ -23,6 +23,12 @@ enum SplitType {
   SHARES
 }
 
+enum ExpenseStatus {
+  PENDING      // no one has paid yet
+  PAID         // paid by payer_id
+  REIMBURSED   // optional, for future
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -133,13 +139,14 @@ model Expense {
   id           String               @id @default(cuid()) @map("id")
   group        Group                @relation(fields: [groupId], references: [id])
   groupId      String               @map("group_id")
-  payer        GroupMember          @relation("ExpensePayer", fields: [payerId], references: [id])
-  payerId      String               @map("payer_id")
+  payer        GroupMember?         @relation("ExpensePayer", fields: [payerId], references: [id])
+  payerId      String?              @map("payer_id")
   amount       Decimal              @map("amount") @db.Decimal(12, 2)
   currency     String               @default("USD") @map("currency")
   date         DateTime             @default(now()) @map("date")
   category     String?              @map("category")
   note         String?              @map("note")
+  status       ExpenseStatus        @default(PENDING) @map("status")
   splitType    SplitType            @map("split_type")
   participants ExpenseParticipant[]
   percentMap   Json?                @map("percent_map")
