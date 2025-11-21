@@ -29,6 +29,13 @@ enum ExpenseStatus {
   REIMBURSED   // optional, for future
 }
 
+enum UploadParsingStatus {
+  PENDING
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -129,6 +136,7 @@ model GroupMember {
   participantEntries ExpenseParticipant[] @relation("ExpenseParticipantMember")
   settlementsFrom    Settlement[]         @relation("SettlementFrom")
   settlementsTo      Settlement[]         @relation("SettlementTo")
+  uploads            UploadedExpense[]    @relation("Uploader")
   createdAt          DateTime             @default(now()) @map("created_at")
 
   @@index([groupId])
@@ -153,6 +161,7 @@ model Expense {
   shareMap     Json?                @map("share_map")
   receiptUrl   String?              @map("receipt_url")
   lineItems    ExpenseLineItem[]
+  uploads      UploadedExpense[]
   createdAt    DateTime             @default(now()) @map("created_at")
 
   @@index([groupId])
@@ -208,4 +217,27 @@ model Settlement {
   @@index([fromMemberId])
   @@index([toMemberId])
   @@map("settlements")
+}
+
+model UploadedExpense {
+  id               String              @id @default(cuid()) @map("id")
+  expense          Expense             @relation(fields: [expenseId], references: [id])
+  expenseId        String              @map("expense_id")
+  uploadedBy       GroupMember?        @relation("Uploader", fields: [uploadedById], references: [id])
+  uploadedById     String?             @map("uploaded_by_id")
+  fileUrl          String              @map("file_url")
+  fileType         String              @map("file_type")
+  originalFileName String              @map("original_file_name")
+  storageBucket    String              @map("storage_bucket")
+  storageKey       String              @map("storage_key")
+  parsingStatus    UploadParsingStatus @default(PENDING) @map("parsing_status")
+  rawText          String?             @map("raw_text")
+  parsedJson       Json?               @map("parsed_json")
+  errorMessage     String?             @map("error_message")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  @@index([expenseId])
+  @@index([uploadedById])
+  @@map("uploaded_expenses")
 }

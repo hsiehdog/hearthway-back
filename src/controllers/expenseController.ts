@@ -3,6 +3,7 @@ import { Prisma, SplitType, ExpenseStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../middleware/errorHandler";
+import { deleteFromS3, generateSignedGetUrl } from "../lib/storage";
 
 const participantSchema = z.object({
   memberId: z.string().min(1, "memberId is required"),
@@ -17,6 +18,10 @@ const lineItemSchema = z.object({
   totalAmount: z.coerce.number().nonnegative(),
 });
 
+const expenseParamsSchema = z.object({
+  id: z.string().min(1, "expense id is required"),
+});
+
 const createExpenseSchema = z.object({
   groupId: z.string().min(1, "groupId is required"),
   payerMemberId: z.string().min(1, "payerMemberId is required").optional(),
@@ -28,8 +33,12 @@ const createExpenseSchema = z.object({
   note: z.string().max(1000).optional(),
   splitType: z.nativeEnum(SplitType),
   participants: z.array(participantSchema).optional(),
-  percentMap: z.record(z.number().nonnegative()).optional(),
-  shareMap: z.record(z.number().nonnegative()).optional(),
+  percentMap: z
+    .record(z.string(), z.number().nonnegative())
+    .optional(),
+  shareMap: z
+    .record(z.string(), z.number().nonnegative())
+    .optional(),
   receiptUrl: z.string().url().optional(),
   lineItems: z.array(lineItemSchema).optional(),
 });
@@ -44,8 +53,14 @@ const updateExpenseSchema = z.object({
   note: z.string().max(1000).optional().nullable(),
   splitType: z.nativeEnum(SplitType).optional(),
   participants: z.array(participantSchema).optional(),
-  percentMap: z.record(z.number().nonnegative()).optional().nullable(),
-  shareMap: z.record(z.number().nonnegative()).optional().nullable(),
+  percentMap: z
+    .record(z.string(), z.number().nonnegative())
+    .optional()
+    .nullable(),
+  shareMap: z
+    .record(z.string(), z.number().nonnegative())
+    .optional()
+    .nullable(),
   receiptUrl: z.string().url().optional().nullable(),
   lineItems: z.array(lineItemSchema).optional(),
 });
@@ -140,8 +155,8 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
         category,
         note,
         splitType,
-        percentMap,
-        shareMap,
+        percentMap: percentMap ? (percentMap as Prisma.InputJsonValue) : undefined,
+        shareMap: shareMap ? (shareMap as Prisma.InputJsonValue) : undefined,
         receiptUrl,
         participants: participants?.length
           ? {
@@ -267,8 +282,8 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
         category,
         note,
         splitType,
-        percentMap,
-        shareMap,
+        percentMap: percentMap === null ? Prisma.DbNull : (percentMap as Prisma.InputJsonValue | undefined),
+        shareMap: shareMap === null ? Prisma.DbNull : (shareMap as Prisma.InputJsonValue | undefined),
         receiptUrl,
         participants: participants
           ? {
@@ -292,7 +307,6 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
               })),
             }
           : undefined,
-        updatedAt: new Date(),
       },
       include: {
         participants: true,
@@ -304,6 +318,58 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request body", 400, error.flatten()));
+      return;
+    }
+
+    next(error);
+  }
+};
+
+export const getExpense = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError("Unauthorized", 401);
+    }
+
+    const { id } = expenseParamsSchema.parse(req.params);
+
+    const expense = await prisma.expense.findFirst({
+      where: {
+        id,
+        group: {
+          members: {
+            some: { userId: req.user.id },
+          },
+        },
+      },
+      include: {
+        participants: true,
+        lineItems: true,
+        uploads: true,
+      },
+    });
+
+    if (!expense) {
+      throw new ApiError("Expense not found", 404);
+    }
+
+    const uploadsWithSignedUrl = await Promise.all(
+      expense.uploads.map(async (upload) => ({
+        ...upload,
+        signedUrl: await generateSignedGetUrl(upload.storageKey, 300),
+        signedUrlExpiresIn: 300,
+      })),
+    );
+
+    res.json({
+      expense: {
+        ...expense,
+        uploads: uploadsWithSignedUrl,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      next(new ApiError("Invalid request", 400, error.flatten()));
       return;
     }
 
@@ -337,11 +403,26 @@ export const deleteExpense = async (req: Request, res: Response, next: NextFunct
       throw new ApiError("You are not a member of this group", 403);
     }
 
+    const uploads = await prisma.uploadedExpense.findMany({
+      where: { expenseId: id },
+      select: { id: true, storageKey: true },
+    });
+
     await prisma.$transaction([
+      prisma.uploadedExpense.deleteMany({ where: { expenseId: id } }),
       prisma.expenseParticipant.deleteMany({ where: { expenseId: id } }),
       prisma.expenseLineItem.deleteMany({ where: { expenseId: id } }),
       prisma.expense.delete({ where: { id } }),
     ]);
+
+    await Promise.all(
+      uploads.map(({ storageKey }) =>
+        deleteFromS3(storageKey).catch(() => {
+          // swallow S3 delete errors to avoid blocking API response
+          return;
+        }),
+      ),
+    );
 
     res.status(204).end();
   } catch (error) {
