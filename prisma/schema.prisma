@@ -151,7 +151,7 @@ model Expense {
   payerId      String?              @map("payer_id")
   amount       Decimal              @map("amount") @db.Decimal(12, 2)
   currency     String               @default("USD") @map("currency")
-  date         DateTime             @default(now()) @map("date")
+  date         DateTime             @default(now()) @map("date") @db.Date
   category     String?              @map("category")
   note         String?              @map("note")
   status       ExpenseStatus        @default(PENDING) @map("status")
