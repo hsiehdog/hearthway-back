@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../middleware/errorHandler";
 import { deleteFromS3, generateSignedGetUrl } from "../lib/storage";
+import { addParticipantCosts } from "../lib/expense";
 
 const participantSchema = z.object({
   memberId: z.string().min(1, "memberId is required"),
@@ -185,7 +186,7 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
       },
     });
 
-    res.status(201).json({ expense });
+    res.status(201).json({ expense: addParticipantCosts(expense) });
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request body", 400, error.flatten()));
@@ -314,7 +315,7 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
       },
     });
 
-    res.json({ expense: updatedExpense });
+    res.json({ expense: addParticipantCosts(updatedExpense) });
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request body", 400, error.flatten()));
@@ -362,10 +363,10 @@ export const getExpense = async (req: Request, res: Response, next: NextFunction
     );
 
     res.json({
-      expense: {
+      expense: addParticipantCosts({
         ...expense,
         uploads: uploadsWithSignedUrl,
-      },
+      }),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

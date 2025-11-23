@@ -3,6 +3,7 @@ import { GroupType } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../middleware/errorHandler";
+import { addParticipantCosts } from "../lib/expense";
 
 const createGroupSchema = z.object({
   name: z.string().min(1, "Name is required").max(200, "Name is too long"),
@@ -36,14 +37,23 @@ export const listGroups = async (req: Request, res: Response, next: NextFunction
       },
       include: {
         members: true,
-        expenses: true,
+        expenses: {
+          include: {
+            participants: true,
+          },
+        },
       },
       orderBy: {
         updatedAt: "desc",
       },
     });
 
-    res.json({ groups });
+    const groupsWithCosts = groups.map((group) => ({
+      ...group,
+      expenses: group.expenses.map(addParticipantCosts),
+    }));
+
+    res.json({ groups: groupsWithCosts });
   } catch (error) {
     next(error);
   }
@@ -119,7 +129,12 @@ export const getGroup = async (req: Request, res: Response, next: NextFunction):
       throw new ApiError("You are not a member of this group", 403);
     }
 
-    res.json({ group });
+    res.json({
+      group: {
+        ...group,
+        expenses: group.expenses.map(addParticipantCosts),
+      },
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request", 400, error.flatten()));
@@ -167,11 +182,22 @@ export const addGroupMember = async (req: Request, res: Response, next: NextFunc
       where: { id },
       include: {
         members: true,
-        expenses: true,
+        expenses: {
+          include: {
+            participants: true,
+          },
+        },
       },
     });
 
-    res.status(201).json({ group: updatedGroup });
+    res.status(201).json({
+      group: updatedGroup
+        ? {
+            ...updatedGroup,
+            expenses: updatedGroup.expenses.map(addParticipantCosts),
+          }
+        : updatedGroup,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request body", 400, error.flatten()));
