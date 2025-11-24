@@ -25,6 +25,7 @@ enum SplitType {
 
 enum ExpenseStatus {
   PENDING      // no one has paid yet
+  PARTIALLY_PAID // some, but not all, of the amount has been paid
   PAID         // paid by payer_id
   REIMBURSED   // optional, for future
 }
@@ -132,8 +133,8 @@ model GroupMember {
   userId             String?              @map("user_id")
   displayName        String               @map("display_name")
   email              String?              @map("email")
-  expensesPaid       Expense[]            @relation("ExpensePayer")
   participantEntries ExpenseParticipant[] @relation("ExpenseParticipantMember")
+  paymentsMade       ExpensePayment[]     @relation("ExpensePaymentPayer")
   settlementsFrom    Settlement[]         @relation("SettlementFrom")
   settlementsTo      Settlement[]         @relation("SettlementTo")
   uploads            UploadedExpense[]    @relation("Uploader")
@@ -147,8 +148,6 @@ model Expense {
   id           String               @id @default(cuid()) @map("id")
   group        Group                @relation(fields: [groupId], references: [id])
   groupId      String               @map("group_id")
-  payer        GroupMember?         @relation("ExpensePayer", fields: [payerId], references: [id])
-  payerId      String?              @map("payer_id")
   amount       Decimal              @map("amount") @db.Decimal(12, 2)
   currency     String               @default("USD") @map("currency")
   date         DateTime             @default(now()) @map("date") @db.Date
@@ -157,13 +156,12 @@ model Expense {
   status       ExpenseStatus        @default(PENDING) @map("status")
   splitType    SplitType            @map("split_type")
   participants ExpenseParticipant[]
-  receiptUrl   String?              @map("receipt_url")
   lineItems    ExpenseLineItem[]
   uploads      UploadedExpense[]
+  payments     ExpensePayment[]
   createdAt    DateTime             @default(now()) @map("created_at")
 
   @@index([groupId])
-  @@index([payerId])
   @@map("expenses")
 }
 
@@ -179,6 +177,25 @@ model ExpenseParticipant {
   @@index([expenseId])
   @@index([memberId])
   @@map("expense_participants")
+}
+
+model ExpensePayment {
+  id            String        @id @default(cuid()) @map("id")
+  expense       Expense       @relation(fields: [expenseId], references: [id])
+  expenseId     String        @map("expense_id")
+  payer         GroupMember   @relation("ExpensePaymentPayer", fields: [payerId], references: [id])
+  payerId       String        @map("payer_id")
+  amount        Decimal       @map("amount") @db.Decimal(12, 2)
+  currency      String        @default("USD") @map("currency")
+  notes          String?      @map("notes")
+  receiptUrl    String?       @map("receipt_url")
+  paidAt        DateTime      @default(now()) @map("paid_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt      @map("updated_at")
+
+  @@index([expenseId])
+  @@index([payerId])
+  @@map("expense_payments")
 }
 
 model ExpenseLineItem {

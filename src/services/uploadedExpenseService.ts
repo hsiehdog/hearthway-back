@@ -116,7 +116,6 @@ export async function uploadExpenseAndCreate({
   const expense = await prisma.expense.create({
     data: {
       groupId,
-      payerId: membership.id,
       status: ExpenseStatus.PENDING,
       splitType: "EVEN",
       amount: new Prisma.Decimal(0),

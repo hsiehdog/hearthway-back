@@ -40,6 +40,7 @@ export const listGroups = async (req: Request, res: Response, next: NextFunction
         expenses: {
           include: {
             participants: true,
+            payments: true,
           },
         },
       },
@@ -114,6 +115,7 @@ export const getGroup = async (req: Request, res: Response, next: NextFunction):
           include: {
             participants: true,
             lineItems: true,
+            payments: true,
           },
           orderBy: { date: "desc" },
         },
@@ -185,6 +187,7 @@ export const addGroupMember = async (req: Request, res: Response, next: NextFunc
         expenses: {
           include: {
             participants: true,
+            payments: true,
           },
         },
       },

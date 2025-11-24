@@ -25,7 +25,6 @@ const expenseParamsSchema = z.object({
 
 const createExpenseSchema = z.object({
   groupId: z.string().min(1, "groupId is required"),
-  payerMemberId: z.string().min(1, "payerMemberId is required").optional(),
   status: z.nativeEnum(ExpenseStatus).optional(),
   amount: z.coerce.number().positive("amount must be positive"),
   currency: z.string().min(1).max(10).default("USD"),
@@ -34,12 +33,10 @@ const createExpenseSchema = z.object({
   description: z.string().max(1000).optional(),
   splitType: z.nativeEnum(SplitType),
   participants: z.array(participantSchema).optional(),
-  receiptUrl: z.string().url().optional(),
   lineItems: z.array(lineItemSchema).optional(),
 });
 
 const updateExpenseSchema = z.object({
-  payerMemberId: z.string().min(1, "payerMemberId is required").optional(),
   status: z.nativeEnum(ExpenseStatus).optional(),
   amount: z.coerce.number().positive("amount must be positive").optional(),
   currency: z.string().min(1).max(10).optional(),
@@ -48,8 +45,15 @@ const updateExpenseSchema = z.object({
   description: z.string().max(1000).optional().nullable(),
   splitType: z.nativeEnum(SplitType).optional(),
   participants: z.array(participantSchema).optional(),
-  receiptUrl: z.string().url().optional().nullable(),
   lineItems: z.array(lineItemSchema).optional(),
+});
+
+const payExpenseSchema = z.object({
+  amount: z.coerce.number().positive("Payment amount must be positive"),
+  payerMemberId: z.string().min(1, "payerMemberId is required"),
+  notes: z.string().max(500).optional().nullable(),
+  paidAt: z.coerce.date().optional(),
+  receiptUrl: z.string().url().optional(),
 });
 
 export const createExpense = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -60,7 +64,6 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
 
     const {
       groupId,
-      payerMemberId,
       amount,
       currency,
       date,
@@ -69,7 +72,6 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
       status,
       splitType,
       participants,
-      receiptUrl,
       lineItems,
     } = createExpenseSchema.parse(req.body);
 
@@ -92,20 +94,7 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
       throw new ApiError("You are not a member of this group", 403);
     }
 
-    let resolvedPayerId: string | null = payerMemberId ?? null;
-    if (payerMemberId) {
-      const payerMembership = await prisma.groupMember.findFirst({
-        where: { id: payerMemberId, groupId },
-      });
-
-      if (!payerMembership) {
-        throw new ApiError("Payer is not part of this group", 400);
-      }
-
-      resolvedPayerId = payerMembership.id;
-    }
-
-    const resolvedStatus = status ?? (resolvedPayerId ? ExpenseStatus.PAID : ExpenseStatus.PENDING);
+    const resolvedStatus = status ?? ExpenseStatus.PENDING;
 
     const participantIds = participants?.map((p) => p.memberId) ?? [];
     const hasDuplicates = new Set(participantIds).size !== participantIds.length;
@@ -132,7 +121,6 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
     const expense = await prisma.expense.create({
       data: {
         groupId,
-        payerId: resolvedPayerId ?? undefined,
         status: resolvedStatus,
         amount: new Prisma.Decimal(amount),
         currency,
@@ -140,7 +128,6 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
         name,
         description,
         splitType,
-        receiptUrl,
         participants: participants?.length
           ? {
               create: participants.map((participant) => ({
@@ -165,6 +152,7 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
       include: {
         participants: true,
         lineItems: true,
+        payments: true,
       },
     });
 
@@ -187,7 +175,6 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
 
     const { id } = req.params;
     const {
-      payerMemberId,
       amount,
       currency,
       date,
@@ -196,7 +183,6 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
       status,
       splitType,
       participants,
-      receiptUrl,
       lineItems,
     } = updateExpenseSchema.parse(req.body);
 
@@ -220,19 +206,6 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
       throw new ApiError("You are not a member of this group", 403);
     }
 
-    let resolvedPayerId: string | null = payerMemberId ?? existingExpense.payerId;
-    if (payerMemberId) {
-      const payerMembership = await prisma.groupMember.findFirst({
-        where: { id: payerMemberId, groupId: existingExpense.groupId },
-      });
-
-      if (!payerMembership) {
-        throw new ApiError("Payer is not part of this group", 400);
-      }
-
-      resolvedPayerId = payerMembership.id;
-    }
-
     const participantIds = participants?.map((p) => p.memberId) ?? [];
     if (participantIds.length > 0) {
       const groupParticipants = await prisma.groupMember.findMany({
@@ -250,12 +223,11 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
       }
     }
 
-    const resolvedStatus = status ?? (resolvedPayerId ? ExpenseStatus.PAID : ExpenseStatus.PENDING);
+    const resolvedStatus = status ?? existingExpense.status ?? ExpenseStatus.PENDING;
 
     const updatedExpense = await prisma.expense.update({
       where: { id },
       data: {
-        payerId: resolvedPayerId ?? null,
         status: resolvedStatus,
         amount: amount !== undefined ? new Prisma.Decimal(amount) : undefined,
         currency,
@@ -263,7 +235,6 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
         name,
         description,
         splitType,
-        receiptUrl,
         participants: participants
           ? {
               deleteMany: { expenseId: id },
@@ -290,6 +261,7 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
       include: {
         participants: true,
         lineItems: true,
+        payments: true,
       },
     });
 
@@ -325,6 +297,7 @@ export const getExpense = async (req: Request, res: Response, next: NextFunction
         participants: true,
         lineItems: true,
         uploads: true,
+        payments: true,
       },
     });
 
@@ -405,6 +378,82 @@ export const deleteExpense = async (req: Request, res: Response, next: NextFunct
 
     res.status(204).end();
   } catch (error) {
+    next(error);
+  }
+};
+
+export const payExpense = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError("Unauthorized", 401);
+    }
+
+    const { id } = expenseParamsSchema.parse(req.params);
+    const { amount, payerMemberId, notes, paidAt, receiptUrl } = payExpenseSchema.parse(req.body);
+
+    const expense = await prisma.expense.findFirst({
+      where: { id, group: { members: { some: { userId: req.user.id } } } },
+      include: {
+        group: { include: { members: true } },
+        participants: true,
+        payments: true,
+      },
+    });
+
+    if (!expense) {
+      throw new ApiError("Expense not found", 404);
+    }
+
+    const payerId = payerMemberId;
+    const isInGroup = expense.group.members.some((member) => member.id === payerId);
+    if (!isInGroup) {
+      throw new ApiError("Payer is not part of this group", 400);
+    }
+
+    const totalPaid = expense.payments.reduce((sum, payment) => sum.plus(payment.amount), new Prisma.Decimal(0));
+    const outstanding = expense.amount.minus(totalPaid);
+    const paymentAmount = new Prisma.Decimal(amount);
+
+    if (paymentAmount.gt(outstanding)) {
+      throw new ApiError("Payment exceeds outstanding balance", 400);
+    }
+
+    const newTotalPaid = totalPaid.plus(paymentAmount);
+    const nextStatus = newTotalPaid.gte(expense.amount) ? ExpenseStatus.PAID : ExpenseStatus.PARTIALLY_PAID;
+
+    const [payment] = await prisma.$transaction([
+      prisma.expensePayment.create({
+        data: {
+          expenseId: id,
+          payerId: payerId ?? undefined,
+          amount: paymentAmount,
+          currency: expense.currency,
+          notes: notes ?? undefined,
+          paidAt: paidAt ?? undefined,
+          receiptUrl,
+        },
+      }),
+      prisma.expense.update({
+        where: { id },
+        data: { status: nextStatus },
+      }),
+    ]);
+
+    const updatedExpense = await prisma.expense.findUnique({
+      where: { id },
+      include: { participants: true, lineItems: true, uploads: true, payments: true },
+    });
+
+    res.status(201).json({
+      expense: addParticipantCosts(updatedExpense!),
+      payment,
+      outstanding: outstanding.minus(paymentAmount).toFixed(2),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      next(new ApiError("Invalid request", 400, error.flatten()));
+      return;
+    }
     next(error);
   }
 };
