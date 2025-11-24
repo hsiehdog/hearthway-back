@@ -122,7 +122,8 @@ export async function uploadExpenseAndCreate({
       amount: new Prisma.Decimal(0),
       currency: "USD",
       date: new Date(),
-      note: "Pending receipt parsing",
+      name: file.originalname || "Uploaded expense",
+      description: "Pending receipt parsing",
       participants: {
         create: await prisma.groupMember
           .findMany({

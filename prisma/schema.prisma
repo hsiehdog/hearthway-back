@@ -152,13 +152,11 @@ model Expense {
   amount       Decimal              @map("amount") @db.Decimal(12, 2)
   currency     String               @default("USD") @map("currency")
   date         DateTime             @default(now()) @map("date") @db.Date
-  category     String?              @map("category")
-  note         String?              @map("note")
+  name         String               @default("Expense") @map("name")
+  description  String?              @map("description")
   status       ExpenseStatus        @default(PENDING) @map("status")
   splitType    SplitType            @map("split_type")
   participants ExpenseParticipant[]
-  percentMap   Json?                @map("percent_map")
-  shareMap     Json?                @map("share_map")
   receiptUrl   String?              @map("receipt_url")
   lineItems    ExpenseLineItem[]
   uploads      UploadedExpense[]

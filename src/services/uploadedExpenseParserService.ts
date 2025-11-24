@@ -61,10 +61,16 @@ If data is missing, use null. Prefer exact totals from the document.
 Include taxes, shipping, fees, discounts, and similar adjustments as separate line items when present. Use negative totals for discounts.
 When adding those adjustments, set their category to "Adjustments" unless a clearer category is present on the document.
 Do not include subtotal rows as line items; only include actual charges/fees/discounts/taxes/shipping as line items.`; 
+    // Encourage the model to craft a concise name and more detailed description for the expense.
+    const namingPrompt = `
+Always propose:
+- "name": a short, human-friendly title (e.g., "Tapas at Casa Bonita", "Lumber from Home Depot").
+- "description": a concise summary with useful context (what the purchase was, where, for whom, notable details).
+If the document lacks clear info, still infer reasonable placeholders rather than leaving them blank.`;
 
     const result = await generateText({
       model: openai(env.AI_MODEL),
-      system: systemPrompt,
+      system: `${systemPrompt}\n${namingPrompt}`,
       messages: [
         {
           role: "user",
@@ -124,8 +130,8 @@ Do not include subtotal rows as line items; only include actual charges/fees/dis
             : undefined,
         currency: parsedJson?.currency ?? undefined,
         date: parsedJson?.date ? new Date(parsedJson.date) : undefined,
-        category: parsedJson?.category ?? undefined,
-        note: parsedJson?.note ?? undefined,
+        name: parsedJson?.name ?? parsedJson?.category ?? "Expense",
+        description: parsedJson?.note ?? undefined,
         lineItems: lineItemsData.length
           ? {
               deleteMany: { expenseId: upload.expenseId },

@@ -4,8 +4,6 @@ type ExpenseWithParticipants = {
   amount: Prisma.Decimal | number | string;
   splitType: SplitType;
   participants: Array<{ memberId: string; shareAmount?: Prisma.Decimal | number | string | null }>;
-  percentMap?: Prisma.JsonValue | null;
-  shareMap?: Prisma.JsonValue | null;
 };
 
 export type ParticipantCostMap = Record<string, string>;
@@ -14,21 +12,6 @@ const toDecimal = (value: Prisma.Decimal | number | string | null | undefined): 
   if (value instanceof Prisma.Decimal) return value;
   if (value === null || value === undefined) return new Prisma.Decimal(0);
   return new Prisma.Decimal(value);
-};
-
-const parseNumberRecord = (value: Prisma.JsonValue | null | undefined): Record<string, Prisma.Decimal> => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return Object.entries(value).reduce<Record<string, Prisma.Decimal>>((acc, [key, rawValue]) => {
-    try {
-      acc[key] = toDecimal(rawValue as unknown as number | string);
-    } catch {
-      // Ignore malformed values instead of failing the entire response
-    }
-    return acc;
-  }, {});
 };
 
 export const calculateParticipantCosts = (expense: ExpenseWithParticipants): ParticipantCostMap => {
@@ -46,16 +29,12 @@ export const calculateParticipantCosts = (expense: ExpenseWithParticipants): Par
       shareCountsByMember[participant.memberId] = new Prisma.Decimal(1);
     });
   } else if (expense.splitType === SplitType.PERCENT) {
-    const percents = parseNumberRecord(expense.percentMap);
     participants.forEach((participant) => {
-      shareCountsByMember[participant.memberId] = percents[participant.memberId] ?? toDecimal(participant.shareAmount);
+      shareCountsByMember[participant.memberId] = toDecimal(participant.shareAmount);
     });
   } else if (expense.splitType === SplitType.SHARES) {
-    const shares = parseNumberRecord(expense.shareMap);
     participants.forEach((participant) => {
-      const fromMap = shares[participant.memberId];
-      const fromParticipant = toDecimal(participant.shareAmount);
-      shareCountsByMember[participant.memberId] = fromMap ?? fromParticipant;
+      shareCountsByMember[participant.memberId] = toDecimal(participant.shareAmount);
     });
   }
 

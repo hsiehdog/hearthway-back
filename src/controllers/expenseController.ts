@@ -30,16 +30,10 @@ const createExpenseSchema = z.object({
   amount: z.coerce.number().positive("amount must be positive"),
   currency: z.string().min(1).max(10).default("USD"),
   date: z.coerce.date().optional(),
-  category: z.string().max(100).optional(),
-  note: z.string().max(1000).optional(),
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional(),
   splitType: z.nativeEnum(SplitType),
   participants: z.array(participantSchema).optional(),
-  percentMap: z
-    .record(z.string(), z.number().nonnegative())
-    .optional(),
-  shareMap: z
-    .record(z.string(), z.number().nonnegative())
-    .optional(),
   receiptUrl: z.string().url().optional(),
   lineItems: z.array(lineItemSchema).optional(),
 });
@@ -50,18 +44,10 @@ const updateExpenseSchema = z.object({
   amount: z.coerce.number().positive("amount must be positive").optional(),
   currency: z.string().min(1).max(10).optional(),
   date: z.coerce.date().optional(),
-  category: z.string().max(100).optional().nullable(),
-  note: z.string().max(1000).optional().nullable(),
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(1000).optional().nullable(),
   splitType: z.nativeEnum(SplitType).optional(),
   participants: z.array(participantSchema).optional(),
-  percentMap: z
-    .record(z.string(), z.number().nonnegative())
-    .optional()
-    .nullable(),
-  shareMap: z
-    .record(z.string(), z.number().nonnegative())
-    .optional()
-    .nullable(),
   receiptUrl: z.string().url().optional().nullable(),
   lineItems: z.array(lineItemSchema).optional(),
 });
@@ -78,13 +64,11 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
       amount,
       currency,
       date,
-      category,
-      note,
+      name,
+      description,
       status,
       splitType,
       participants,
-      percentMap,
-      shareMap,
       receiptUrl,
       lineItems,
     } = createExpenseSchema.parse(req.body);
@@ -153,11 +137,9 @@ export const createExpense = async (req: Request, res: Response, next: NextFunct
         amount: new Prisma.Decimal(amount),
         currency,
         date: date ?? new Date(),
-        category,
-        note,
+        name,
+        description,
         splitType,
-        percentMap: percentMap ? (percentMap as Prisma.InputJsonValue) : undefined,
-        shareMap: shareMap ? (shareMap as Prisma.InputJsonValue) : undefined,
         receiptUrl,
         participants: participants?.length
           ? {
@@ -209,13 +191,11 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
       amount,
       currency,
       date,
-      category,
-      note,
+      name,
+      description,
       status,
       splitType,
       participants,
-      percentMap,
-      shareMap,
       receiptUrl,
       lineItems,
     } = updateExpenseSchema.parse(req.body);
@@ -280,11 +260,9 @@ export const updateExpense = async (req: Request, res: Response, next: NextFunct
         amount: amount !== undefined ? new Prisma.Decimal(amount) : undefined,
         currency,
         date,
-        category,
-        note,
+        name,
+        description,
         splitType,
-        percentMap: percentMap === null ? Prisma.DbNull : (percentMap as Prisma.InputJsonValue | undefined),
-        shareMap: shareMap === null ? Prisma.DbNull : (shareMap as Prisma.InputJsonValue | undefined),
         receiptUrl,
         participants: participants
           ? {
