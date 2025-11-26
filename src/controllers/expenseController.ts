@@ -382,6 +382,53 @@ export const deleteExpense = async (req: Request, res: Response, next: NextFunct
   }
 };
 
+export const deleteExpensePayment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError("Unauthorized", 401);
+    }
+
+    const { id: expenseId, paymentId } = req.params;
+    const expense = await prisma.expense.findFirst({
+      where: { id: expenseId, group: { members: { some: { userId: req.user.id } } } },
+      include: { payments: true },
+    });
+
+    if (!expense) {
+      throw new ApiError("Expense not found", 404);
+    }
+
+    const payment = expense.payments.find((p) => p.id === paymentId);
+    if (!payment) {
+      throw new ApiError("Payment not found", 404);
+    }
+
+    await prisma.expensePayment.delete({ where: { id: paymentId } });
+
+    const remainingPayments = await prisma.expensePayment.findMany({
+      where: { expenseId },
+      select: { amount: true },
+    });
+    const totalPaid = remainingPayments.reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
+    const nextStatus =
+      totalPaid.gte(expense.amount) && remainingPayments.length > 0
+        ? ExpenseStatus.PAID
+        : totalPaid.gt(0)
+          ? ExpenseStatus.PARTIALLY_PAID
+          : ExpenseStatus.PENDING;
+
+    const updatedExpense = await prisma.expense.update({
+      where: { id: expenseId },
+      data: { status: nextStatus },
+      include: { participants: true, lineItems: true, uploads: true, payments: true },
+    });
+
+    res.json({ expense: addParticipantCosts(updatedExpense) });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const payExpense = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     if (!req.user) {
@@ -449,6 +496,88 @@ export const payExpense = async (req: Request, res: Response, next: NextFunction
       payment,
       outstanding: outstanding.minus(paymentAmount).toFixed(2),
     });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      next(new ApiError("Invalid request", 400, error.flatten()));
+      return;
+    }
+    next(error);
+  }
+};
+
+export const updateExpensePayment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError("Unauthorized", 401);
+    }
+
+    const { id: expenseId, paymentId } = req.params;
+    const { amount, payerMemberId, notes, paidAt, receiptUrl } = payExpenseSchema.parse(req.body);
+
+    const expense = await prisma.expense.findFirst({
+      where: { id: expenseId, group: { members: { some: { userId: req.user.id } } } },
+      include: {
+        group: { include: { members: true } },
+        payments: true,
+        participants: true,
+      },
+    });
+
+    if (!expense) {
+      throw new ApiError("Expense not found", 404);
+    }
+
+    const existingPayment = expense.payments.find((p) => p.id === paymentId);
+    if (!existingPayment) {
+      throw new ApiError("Payment not found", 404);
+    }
+
+    const isInGroup = expense.group.members.some((member) => member.id === payerMemberId);
+    if (!isInGroup) {
+      throw new ApiError("Payer is not part of this group", 400);
+    }
+
+    const otherPaymentsTotal = expense.payments
+      .filter((p) => p.id !== paymentId)
+      .reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
+    const paymentAmount = new Prisma.Decimal(amount);
+    const newTotal = otherPaymentsTotal.plus(paymentAmount);
+
+    if (newTotal.gt(expense.amount)) {
+      throw new ApiError("Payment exceeds outstanding balance", 400);
+    }
+
+    const nextStatus =
+      newTotal.gte(expense.amount) && newTotal.gt(0)
+        ? ExpenseStatus.PAID
+        : newTotal.gt(0)
+          ? ExpenseStatus.PARTIALLY_PAID
+          : ExpenseStatus.PENDING;
+
+    await prisma.$transaction([
+      prisma.expensePayment.update({
+        where: { id: paymentId },
+        data: {
+          payerId: payerMemberId,
+          amount: paymentAmount,
+          currency: expense.currency,
+          notes: notes ?? undefined,
+          paidAt: paidAt ?? undefined,
+          receiptUrl: receiptUrl ?? undefined,
+        },
+      }),
+      prisma.expense.update({
+        where: { id: expenseId },
+        data: { status: nextStatus },
+      }),
+    ]);
+
+    const updatedExpense = await prisma.expense.findUnique({
+      where: { id: expenseId },
+      include: { participants: true, lineItems: true, uploads: true, payments: true },
+    });
+
+    res.json({ expense: addParticipantCosts(updatedExpense!) });
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request", 400, error.flatten()));
