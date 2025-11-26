@@ -18,6 +18,13 @@ const uploadIdParamSchema = z.object({
   uploadId: z.string().min(1),
 });
 
+type UploadedFiles = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+}[];
+
 export const createUpload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     if (!req.user) throw new ApiError("Unauthorized", 401);
@@ -35,6 +42,39 @@ export const createUpload = async (req: Request, res: Response, next: NextFuncti
     });
 
     res.status(201).json({ upload, expenseId });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      next(new ApiError("Invalid request", 400, error.flatten()));
+      return;
+    }
+    next(error);
+  }
+};
+
+export const createUploads = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) throw new ApiError("Unauthorized", 401);
+    const { groupId } = groupParamSchema.parse(req.params);
+
+    const files = (req as Request & { files?: UploadedFiles }).files;
+    if (!files || files.length === 0) {
+      throw new ApiError("At least one file is required", 400);
+    }
+
+    const results = await Promise.all(
+      files.map((file) =>
+        uploadExpenseAndCreate({
+          userId: req.user!.id,
+          groupId,
+          file,
+        }),
+      ),
+    );
+
+    res.status(201).json({
+      uploads: results.map((result) => result.upload),
+      expenseIds: results.map((result) => result.expenseId),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request", 400, error.flatten()));
