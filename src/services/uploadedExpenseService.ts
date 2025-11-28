@@ -2,7 +2,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Prisma, UploadParsingStatus, ExpenseStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
-import { uploadToS3, storageConfig, deleteFromS3, generateSignedGetUrl } from "../lib/storage";
+import { storageConfig, deleteFromS3, generateSignedGetUrl, generateSignedPutUrl } from "../lib/storage";
 import { ApiError } from "../middleware/errorHandler";
 import { logger } from "../utils/logger";
 import { parseUploadedExpense } from "./uploadedExpenseParserService";
@@ -103,64 +103,7 @@ export async function uploadExpenseAndCreate({
   groupId: string;
   file: UploadedFile;
 }) {
-  if (!file) {
-    throw new ApiError("File is required", 400);
-  }
-
-  if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
-    throw new ApiError("Unsupported file type", 415);
-  }
-
-  const membership = await ensureGroupMembership(userId, groupId);
-
-  const expense = await prisma.expense.create({
-    data: {
-      groupId,
-      status: ExpenseStatus.PENDING,
-      splitType: "EVEN",
-      amount: new Prisma.Decimal(0),
-      currency: "USD",
-      date: new Date(),
-      name: file.originalname || "Uploaded expense",
-      description: "Pending receipt parsing",
-      participants: {
-        create: await prisma.groupMember
-          .findMany({
-            where: { groupId },
-            select: { id: true },
-          })
-          .then((members) => members.map((member) => ({ memberId: member.id }))),
-      },
-    },
-    select: { id: true, groupId: true },
-  });
-
-  const key = buildStorageKey(expense.groupId, expense.id, file.originalname);
-  const uploaded = await uploadToS3({
-    key,
-    contentType: file.mimetype,
-    body: file.buffer,
-  });
-
-  const record = await prisma.uploadedExpense.create({
-    data: {
-      expenseId: expense.id,
-      uploadedById: membership.id,
-      fileUrl: uploaded.url,
-      fileType: file.mimetype,
-      originalFileName: file.originalname,
-      storageBucket: storageConfig.bucket,
-      storageKey: uploaded.key,
-      parsingStatus: UploadParsingStatus.PENDING,
-    },
-    select: uploadedExpenseSelect,
-  });
-
-  parseUploadedExpense(record.id).catch((error) => {
-    logger.error("Failed to kick off upload parsing", { error, uploadId: record.id });
-  });
-
-  return { upload: record, expenseId: expense.id };
+  throw new ApiError("Direct uploads are disabled", 400);
 }
 
 export async function getUploadedExpense(userId: string, uploadId: string) {
@@ -188,6 +131,106 @@ export async function generateUploadSignedUrl(userId: string, uploadId: string) 
   const expiresIn = 300;
   const url = await generateSignedGetUrl(upload.storageKey, expiresIn);
   return { url, expiresIn };
+}
+
+export async function createPresignedUpload({
+  userId,
+  groupId,
+  fileName,
+  contentType,
+}: {
+  userId: string;
+  groupId: string;
+  fileName: string;
+  contentType: string;
+}) {
+  if (!ALLOWED_MIME_TYPES.has(contentType)) {
+    throw new ApiError("Unsupported file type", 415);
+  }
+
+  const membership = await ensureGroupMembership(userId, groupId);
+
+  const expense = await prisma.expense.create({
+    data: {
+      groupId,
+      status: ExpenseStatus.PENDING,
+      splitType: "EVEN",
+      amount: new Prisma.Decimal(0),
+      currency: "USD",
+      date: new Date(),
+      name: fileName || "Uploaded expense",
+      description: "Pending receipt parsing",
+      participants: {
+        create: await prisma.groupMember
+          .findMany({
+            where: { groupId },
+            select: { id: true },
+          })
+          .then((members) => members.map((member) => ({ memberId: member.id }))),
+      },
+    },
+    select: { id: true, groupId: true },
+  });
+
+  const key = buildStorageKey(expense.groupId, expense.id, fileName);
+  const uploadUrl = await generateSignedPutUrl({ key, contentType, expiresInSeconds: 300 });
+  const fileUrl = `https://${storageConfig.bucket}.s3.${storageConfig.region}.amazonaws.com/${key}`;
+
+  const record = await prisma.uploadedExpense.create({
+    data: {
+      expenseId: expense.id,
+      uploadedById: membership.id,
+      fileUrl,
+      fileType: contentType,
+      originalFileName: fileName,
+      storageBucket: storageConfig.bucket,
+      storageKey: key,
+      parsingStatus: UploadParsingStatus.PENDING,
+    },
+    select: uploadedExpenseSelect,
+  });
+
+  return { upload: record, expenseId: expense.id, uploadUrl };
+}
+
+export async function markUploadComplete({
+  userId,
+  uploadId,
+}: {
+  userId: string;
+  uploadId: string;
+}) {
+  const upload = await prisma.uploadedExpense.findFirst({
+    where: {
+      id: uploadId,
+      expense: { group: { members: { some: { userId } } } },
+    },
+    include: {
+      uploadedBy: true,
+    },
+  });
+
+  if (!upload) {
+    throw new ApiError("Upload not found", 404);
+  }
+
+  if (upload.uploadedBy && upload.uploadedBy.userId !== userId) {
+    throw new ApiError("You do not own this upload", 403);
+  }
+
+  await prisma.uploadedExpense.update({
+    where: { id: uploadId },
+    data: {
+      parsingStatus: UploadParsingStatus.PENDING,
+      errorMessage: null,
+    },
+  });
+
+  parseUploadedExpense(uploadId).catch((error) => {
+    logger.error("Failed to kick off upload parsing", { error, uploadId });
+  });
+
+  return upload;
 }
 
 export async function deleteUploadedExpense(userId: string, uploadId: string) {

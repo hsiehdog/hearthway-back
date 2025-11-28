@@ -1,47 +1,35 @@
 import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { deleteUploadedExpense, uploadExpenseAndCreate } from "../services/uploadedExpenseService";
+import { createPresignedUpload, deleteUploadedExpense, markUploadComplete } from "../services/uploadedExpenseService";
 import { ApiError } from "../middleware/errorHandler";
 
 const groupParamSchema = z.object({
   groupId: z.string().min(1),
 });
 
-type UploadedFile = {
-  buffer: Buffer;
-  mimetype: string;
-  originalname: string;
-  size: number;
-};
-
 const uploadIdParamSchema = z.object({
   uploadId: z.string().min(1),
 });
 
-type UploadedFiles = {
-  buffer: Buffer;
-  mimetype: string;
-  originalname: string;
-  size: number;
-}[];
+const presignBodySchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.string().min(1),
+});
 
-export const createUpload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const requestUploadUrl = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     if (!req.user) throw new ApiError("Unauthorized", 401);
     const { groupId } = groupParamSchema.parse(req.params);
+    const { fileName, contentType } = presignBodySchema.parse(req.body);
 
-    const file = (req as Request & { file?: UploadedFile }).file;
-    if (!file) {
-      throw new ApiError("File is required", 400);
-    }
-
-    const { upload, expenseId } = await uploadExpenseAndCreate({
+    const { upload, expenseId, uploadUrl } = await createPresignedUpload({
       userId: req.user.id,
       groupId,
-      file,
+      fileName,
+      contentType,
     });
 
-    res.status(201).json({ upload, expenseId });
+    res.status(201).json({ upload, expenseId, uploadUrl });
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request", 400, error.flatten()));
@@ -51,30 +39,12 @@ export const createUpload = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-export const createUploads = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const completeUpload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     if (!req.user) throw new ApiError("Unauthorized", 401);
-    const { groupId } = groupParamSchema.parse(req.params);
-
-    const files = (req as Request & { files?: UploadedFiles }).files;
-    if (!files || files.length === 0) {
-      throw new ApiError("At least one file is required", 400);
-    }
-
-    const results = await Promise.all(
-      files.map((file) =>
-        uploadExpenseAndCreate({
-          userId: req.user!.id,
-          groupId,
-          file,
-        }),
-      ),
-    );
-
-    res.status(201).json({
-      uploads: results.map((result) => result.upload),
-      expenseIds: results.map((result) => result.expenseId),
-    });
+    const { uploadId } = uploadIdParamSchema.parse(req.params);
+    const upload = await markUploadComplete({ userId: req.user.id, uploadId });
+    res.status(200).json({ upload });
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request", 400, error.flatten()));

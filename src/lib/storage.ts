@@ -75,6 +75,23 @@ export async function generateSignedGetUrl(key: string, expiresInSeconds = 300):
   return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
 }
 
+export async function generateSignedPutUrl({
+  key,
+  contentType,
+  expiresInSeconds = 300,
+}: {
+  key: string;
+  contentType: string;
+  expiresInSeconds?: number;
+}): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: AWS_S3_BUCKET,
+    Key: key,
+    ContentType: contentType,
+  });
+  return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
+}
+
 export async function downloadFromS3(key: string): Promise<Buffer> {
   const command = new GetObjectCommand({
     Bucket: AWS_S3_BUCKET,

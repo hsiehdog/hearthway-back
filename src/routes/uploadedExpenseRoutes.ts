@@ -1,15 +1,15 @@
 import { Router } from "express";
-import multer from "multer";
 import { requireAuth } from "../middleware/authMiddleware";
-import { createUpload, createUploads, deleteUpload } from "../controllers/uploadedExpenseController";
-
-const maxFileSize = Number(process.env.FILE_UPLOAD_MAX_BYTES ?? 10 * 1024 * 1024);
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: maxFileSize } });
+import {
+  completeUpload,
+  deleteUpload,
+  requestUploadUrl,
+} from "../controllers/uploadedExpenseController";
 
 const router = Router({ mergeParams: true });
 
-router.post("/groups/:groupId/expense-uploads", requireAuth, upload.single("file"), createUpload);
-router.post("/groups/:groupId/expense-uploads/batch", requireAuth, upload.array("files"), createUploads);
+router.post("/groups/:groupId/expense-uploads/presign", requireAuth, requestUploadUrl);
+router.post("/uploads/:uploadId/complete", requireAuth, completeUpload);
 router.delete("/uploads/:uploadId", requireAuth, deleteUpload);
 
 export default router;
