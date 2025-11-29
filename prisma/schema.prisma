@@ -37,6 +37,13 @@ enum UploadParsingStatus {
   FAILED
 }
 
+enum UploadProcessingStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -246,6 +253,11 @@ model UploadedExpense {
   storageBucket    String              @map("storage_bucket")
   storageKey       String              @map("storage_key")
   parsingStatus    UploadParsingStatus @default(PENDING) @map("parsing_status")
+  processingStatus UploadProcessingStatus @default(QUEUED) @map("processing_status")
+  processingAttempts Int               @default(0) @map("processing_attempts")
+  lastError        String?             @map("last_error")
+  startedAt        DateTime?           @map("started_at")
+  completedAt      DateTime?           @map("completed_at")
   rawText          String?             @map("raw_text")
   parsedJson       Json?               @map("parsed_json")
   errorMessage     String?             @map("error_message")

@@ -1,11 +1,11 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { Prisma, UploadParsingStatus, ExpenseStatus } from "@prisma/client";
+import { Prisma, UploadParsingStatus, ExpenseStatus, UploadProcessingStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { storageConfig, deleteFromS3, generateSignedGetUrl, generateSignedPutUrl } from "../lib/storage";
 import { ApiError } from "../middleware/errorHandler";
 import { logger } from "../utils/logger";
-import { parseUploadedExpense } from "./uploadedExpenseParserService";
+import { uploadedExpenseQueue } from "../queues/uploadedExpenseQueue";
 
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -186,6 +186,11 @@ export async function createPresignedUpload({
       storageBucket: storageConfig.bucket,
       storageKey: key,
       parsingStatus: UploadParsingStatus.PENDING,
+      processingStatus: UploadProcessingStatus.QUEUED,
+      processingAttempts: 0,
+      lastError: null,
+      startedAt: null,
+      completedAt: null,
     },
     select: uploadedExpenseSelect,
   });
@@ -223,12 +228,12 @@ export async function markUploadComplete({
     data: {
       parsingStatus: UploadParsingStatus.PENDING,
       errorMessage: null,
+      processingStatus: UploadProcessingStatus.QUEUED,
+      lastError: null,
     },
   });
 
-  parseUploadedExpense(uploadId).catch((error) => {
-    logger.error("Failed to kick off upload parsing", { error, uploadId });
-  });
+  await uploadedExpenseQueue.add("process-uploaded-expense", { uploadId }, { removeOnComplete: true, attempts: 3 });
 
   return upload;
 }
