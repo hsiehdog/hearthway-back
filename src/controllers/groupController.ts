@@ -8,8 +8,9 @@ import { addParticipantCosts } from "../lib/expense";
 const createGroupSchema = z.object({
   name: z.string().min(1, "Name is required").max(200, "Name is too long"),
   type: z.nativeEnum(GroupType).optional(),
-  memberDisplayName: z.string().min(1).max(200).optional(),
-  memberEmail: z.string().email().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  location: z.string().optional(),
 });
 
 const getGroupParamsSchema = z.object({
@@ -66,20 +67,23 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
       throw new ApiError("Unauthorized", 401);
     }
 
-    const { name, type, memberDisplayName, memberEmail } = createGroupSchema.parse(req.body);
+    const { name, type, startDate, endDate, location } = createGroupSchema.parse(req.body);
 
-    const displayName = memberDisplayName ?? req.user.name ?? req.user.email ?? "Creator";
-    const email = memberEmail ?? req.user.email ?? undefined;
+    const fallbackName = req.user.name ?? req.user.email ?? "Creator";
+    const fallbackEmail = req.user.email ?? undefined;
 
     const group = await prisma.group.create({
       data: {
         name,
         type: type ?? GroupType.PROJECT,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        primaryLocation: location || undefined,
         members: {
           create: {
             userId: req.user.id,
-            displayName,
-            email,
+            displayName: fallbackName,
+            email: fallbackEmail,
           },
         },
       },
