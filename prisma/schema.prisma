@@ -54,6 +54,12 @@ enum TripItineraryItemType {
   OTHER
 }
 
+enum TripItineraryItemStatus {
+  PROPOSED   // idea / option, not booked yet
+  CONFIRMED  // booked / decided
+  CANCELLED  // was planned or booked, but dropped
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -305,6 +311,7 @@ model TripItineraryItem {
   type        TripItineraryItemType  @map("type")
   title       String                 @map("title")
   description String?                @map("description")
+  status      TripItineraryItemStatus @default(PROPOSED) @map("status")
 
   // When this happens (for itinerary timeline)
   startDateTime DateTime             @map("start_date_time")
