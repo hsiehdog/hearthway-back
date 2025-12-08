@@ -44,6 +44,16 @@ enum UploadProcessingStatus {
   FAILED
 }
 
+enum TripItineraryItemType {
+  FLIGHT
+  LODGING
+  MEAL
+  ACTIVITY
+  TRANSPORT
+  NOTE
+  OTHER
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -123,9 +133,20 @@ model Group {
   id          String        @id @default(cuid()) @map("id")
   name        String        @map("name")
   type        GroupType     @default(PROJECT) @map("type")
+
+  // trip-specific metadata (used when type = TRIP)
+  startDate   DateTime?     @map("start_date") @db.Date
+  endDate     DateTime?     @map("end_date") @db.Date
+  primaryLocation String?   @map("primary_location")
+  baseCurrency String?      @map("base_currency")
+
   members     GroupMember[]
   expenses    Expense[]
   settlements Settlement[]
+
+  // itinerary items for trip mode
+  tripItineraryItems TripItineraryItem[]
+
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
@@ -163,6 +184,11 @@ model Expense {
   description  String?              @map("description")
   status       ExpenseStatus        @default(PENDING) @map("status")
   splitType    SplitType            @map("split_type")
+
+   // optional link to a trip itinerary item
+  tripItineraryItem    TripItineraryItem? @relation(fields: [tripItineraryItemId], references: [id])
+  tripItineraryItemId  String?           @map("trip_itinerary_item_id")
+
   participants ExpenseParticipant[]
   lineItems    ExpenseLineItem[]
   uploads      UploadedExpense[]
@@ -268,4 +294,42 @@ model UploadedExpense {
   @@index([expenseId])
   @@index([uploadedById])
   @@map("uploaded_expenses")
+}
+
+model TripItineraryItem {
+  id          String                 @id @default(cuid()) @map("id")
+
+  group       Group                  @relation(fields: [groupId], references: [id])
+  groupId     String                 @map("group_id")
+
+  type        TripItineraryItemType  @map("type")
+  title       String                 @map("title")
+  description String?                @map("description")
+
+  // When this happens (for itinerary timeline)
+  startDateTime DateTime             @map("start_date_time")
+  endDateTime   DateTime?            @map("end_date_time")
+  allDay        Boolean              @default(false) @map("all_day")
+
+  // Lightweight location info
+  locationName    String?            @map("location_name")    // "Hotel Lutetia"
+  locationAddress String?            @map("location_address") // "45 Bd Raspail, Paris"
+  locationUrl     String?            @map("location_url")     // maps/deeplink/bookings
+
+  // Booking details (optional, but useful)
+  confirmationCode String?           @map("confirmation_code")
+  provider         String?           @map("provider")         // "Air France", "Airbnb"
+  referenceUrl     String?           @map("reference_url")    // booking page, PDF, etc.
+
+  // Relation to expenses (see change to Expense below)
+  expenses    Expense[]
+
+  sortOrder   Int                    @default(0) @map("sort_order")
+
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  @@index([groupId])
+  @@index([startDateTime])
+  @@map("trip_itinerary_items")
 }
