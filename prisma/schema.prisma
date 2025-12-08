@@ -159,6 +159,7 @@ model Expense {
   currency     String               @default("USD") @map("currency")
   date         DateTime             @default(now()) @map("date") @db.Date
   name         String               @default("Expense") @map("name")
+  vendor       String?              @map("vendor")
   description  String?              @map("description")
   status       ExpenseStatus        @default(PENDING) @map("status")
   splitType    SplitType            @map("split_type")

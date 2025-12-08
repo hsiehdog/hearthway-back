@@ -38,13 +38,14 @@ export async function parseUploadedExpense(uploadId: string): Promise<void> {
     const base64 = fileBuffer.toString("base64");
     const dataUrl = `data:${upload.fileType};base64,${base64}`;
 
-    const systemPrompt = `
+const systemPrompt = `
 You are a parser that reads receipts/expense documents and returns JSON for creating expense records.
 Respond ONLY with valid JSON. Schema:
 {
   "amount": number,
   "currency": string,
   "date": string, // ISO format if available
+  "vendor": string | null,
   "category": string | null,
   "note": string | null,
   "lineItems": [
@@ -62,10 +63,11 @@ Include taxes, shipping, fees, discounts, and similar adjustments as separate li
 When adding those adjustments, set their category to "Adjustments" unless a clearer category is present on the document.
 Do not include subtotal rows as line items; only include actual charges/fees/discounts/taxes/shipping as line items.`; 
     // Encourage the model to craft a concise name and more detailed description for the expense.
-    const namingPrompt = `
+const namingPrompt = `
 Always propose:
 - "name": a short, human-friendly title (e.g., "Tapas at Casa Bonita", "Lumber from Home Depot").
 - "description": a concise summary with useful context (what the purchase was, where, for whom, notable details).
+- "vendor": the merchant/store/hotel/restaurant name if visible; otherwise null.
 If the document lacks clear info, still infer reasonable placeholders rather than leaving them blank.`;
 
     const result = await generateText({
@@ -131,6 +133,7 @@ If the document lacks clear info, still infer reasonable placeholders rather tha
         currency: parsedJson?.currency ?? undefined,
         date: parsedJson?.date ? new Date(parsedJson.date) : undefined,
         name: parsedJson?.name ?? parsedJson?.category ?? "Expense",
+        vendor: parsedJson?.vendor ?? undefined,
         description: parsedJson?.note ?? undefined,
         lineItems: lineItemsData.length
           ? {
