@@ -6,19 +6,29 @@ import { prisma } from "../lib/prisma";
 import { ApiError } from "../middleware/errorHandler";
 import { TRIP_BASE_SYSTEM_PROMPT } from "../prompts/system/trips/base";
 import { TRIP_SNAPSHOT_SYSTEM_PROMPT } from "../prompts/system/trips/snapshot";
-import {
-  TRIP_BASE_USER_PROMPT_TEMPLATE,
+import { TRIP_WEATHER_SYSTEM_PROMPT } from "../prompts/system/trips/weather";
+import { TRIP_CURRENCY_SYSTEM_PROMPT } from "../prompts/system/trips/currency";
+import { TRIP_PACKING_SYSTEM_PROMPT } from "../prompts/system/trips/packing";
+import { TRIP_BASE_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/base";
+import type {
   TripCoreInput,
   TripExpenseInput,
   TripExpenseSummaryInput,
   TripItineraryItemInput,
 } from "../prompts/user/trips/base";
-import { TRIP_SNAPSHOT_USER_PROMPT_TEMPLATE, TripSnapshotInput } from "../prompts/user/trips/snapshot";
+import { TRIP_SNAPSHOT_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/snapshot";
+import { TRIP_WEATHER_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/weather";
+import type { TripSnapshotInput } from "../prompts/user/trips/snapshot";
+import { TRIP_CURRENCY_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/currency";
+import { TRIP_PACKING_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/packing";
 
 const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
 
 const MAX_EXPENSES_FOR_PROMPT = 25;
 const MAX_ITINERARY_ITEMS_FOR_PROMPT = 25;
+const DEFAULT_SECTIONS = ["snapshot"] as const;
+export const SUPPORTED_SECTIONS = ["snapshot", "weather", "currency", "packing"] as const;
+export type TripIntelSection = (typeof SUPPORTED_SECTIONS)[number];
 
 type TripWithContext = Prisma.GroupGetPayload<{
   include: {
@@ -102,10 +112,7 @@ const mapItineraryItems = (items: TripWithContext["tripItineraryItems"]): TripIt
   }));
 };
 
-const buildTripSnapshotInput = (
-  trip: TripWithContext,
-  expenseSummary: TripExpenseSummaryInput,
-): TripSnapshotInput => {
+const buildTripSnapshotInput = (trip: TripWithContext, expenseSummary: TripExpenseSummaryInput): TripSnapshotInput => {
   const tripCore: TripCoreInput = {
     tripId: trip.id,
     tripName: trip.name,
@@ -136,31 +143,55 @@ const buildUserPrompt = (tripInput: TripSnapshotInput): string => {
   return combinedTemplate.replace(/{{trip_core_json}}/g, JSON.stringify(tripInput, null, 2));
 };
 
-const buildSystemPrompt = (): string => {
-  return [TRIP_BASE_SYSTEM_PROMPT, TRIP_SNAPSHOT_SYSTEM_PROMPT]
+const sectionSystemPrompts: Record<TripIntelSection, string> = {
+  snapshot: [TRIP_BASE_SYSTEM_PROMPT, TRIP_SNAPSHOT_SYSTEM_PROMPT]
     .map((prompt) => prompt.trim())
-    .join("\n\n");
+    .join("\n\n"),
+  weather: [TRIP_BASE_SYSTEM_PROMPT, TRIP_WEATHER_SYSTEM_PROMPT]
+    .map((prompt) => prompt.trim())
+    .join("\n\n"),
+  currency: [TRIP_BASE_SYSTEM_PROMPT, TRIP_CURRENCY_SYSTEM_PROMPT]
+    .map((prompt) => prompt.trim())
+    .join("\n\n"),
+  packing: [TRIP_BASE_SYSTEM_PROMPT, TRIP_PACKING_SYSTEM_PROMPT]
+    .map((prompt) => prompt.trim())
+    .join("\n\n"),
+};
+
+const buildUserPromptForSection = (section: TripIntelSection, tripInput: TripSnapshotInput): string => {
+  const template = {
+    snapshot: TRIP_SNAPSHOT_USER_PROMPT_TEMPLATE,
+    weather: TRIP_WEATHER_USER_PROMPT_TEMPLATE,
+    currency: TRIP_CURRENCY_USER_PROMPT_TEMPLATE,
+    packing: TRIP_PACKING_USER_PROMPT_TEMPLATE,
+  }[section];
+
+  return [TRIP_BASE_USER_PROMPT_TEMPLATE.trim(), template.trim()]
+    .join("\n\n")
+    .replace(/{{trip_core_json}}/g, JSON.stringify(tripInput, null, 2));
 };
 
 export interface TripIntelResponse {
   tripId: string;
-  sections: {
-    snapshot: {
-      content: string;
-      generatedAt: string;
-      model: string;
-      fromCache: boolean;
-    };
-  };
+  sections: Partial<Record<TripIntelSection, TripIntelSectionResponse>>;
+}
+
+export interface TripIntelSectionResponse {
+  content: string;
+  generatedAt: string;
+  model: string;
+  fromCache: boolean;
 }
 
 export const tripIntelService = {
   async getTripSnapshot({
     tripId,
     userId,
+    sections,
   }: {
     tripId: string;
     userId: string;
+    sections?: TripIntelSection[];
   }): Promise<TripIntelResponse> {
     const trip = await prisma.group.findUnique({
       where: { id: tripId },
@@ -211,24 +242,39 @@ export const tripIntelService = {
     );
 
     const tripInput = buildTripSnapshotInput(trip, expenseSummary);
-    const userPrompt = buildUserPrompt(tripInput);
-    const systemPrompt = buildSystemPrompt();
-
-    const result = await generateText({
-      model: openai(env.AI_MODEL),
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
+    const requestedSections = (sections?.length ? sections : DEFAULT_SECTIONS).filter((section, index, arr) => {
+      return arr.indexOf(section) === index;
     });
 
-    return {
-      tripId,
-      sections: {
-        snapshot: {
+    const sectionResults = await Promise.all(
+      requestedSections.map(async (section) => {
+        const userPrompt = buildUserPromptForSection(section, tripInput);
+        const systemPrompt = sectionSystemPrompts[section];
+
+        const result = await generateText({
+          model: openai(env.AI_MODEL),
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
+        });
+
+        const payload: TripIntelSectionResponse = {
           content: result.text,
           generatedAt: new Date().toISOString(),
           model: env.AI_MODEL,
           fromCache: false,
-        },
+        };
+
+        return { section, payload };
+      }),
+    );
+
+    return {
+      tripId,
+      sections: {
+        ...sectionResults.reduce<TripIntelResponse["sections"]>((acc, { section, payload }) => {
+          acc[section] = payload;
+          return acc;
+        }, {}),
       },
     };
   },

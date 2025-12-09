@@ -1,23 +1,18 @@
-export interface TripMemberInput {
-  memberId: string;
-  displayName?: string | null;
-  email?: string | null;
-  userId?: string | null;
-}
-
+// Expense data for the trip
 export interface TripExpenseInput {
   expenseId: string;
   name: string;
-  vendor?: string | null;
-  description?: string | null;
+  vendor: string | null;
+  description: string | null;
   amount: number;
   currency: string;
-  date: string; // ISO string
+  date: string;
   status: string;
   splitType: string;
-  participantCount?: number;
+  participantCount: number;
 }
 
+// Summary of expenses for the trip
 export interface TripExpenseSummaryInput {
   totalExpenses: number;
   totalsByCurrency: Array<{
@@ -25,40 +20,46 @@ export interface TripExpenseSummaryInput {
     total: number;
     count: number;
   }>;
-  latestExpenseDate?: string | null;
+  latestExpenseDate: string | null;
 }
 
+// Itinerary item for the trip
 export interface TripItineraryItemInput {
   id: string;
   type: string;
   title: string;
   status: string;
-  startDateTime: string; // ISO string
-  endDateTime?: string | null; // ISO string
-  allDay?: boolean;
-  locationName?: string | null;
-  locationAddress?: string | null;
+  startDateTime: string;
+  endDateTime: string | null;
+  allDay: boolean;
+  locationName: string | null;
+  locationAddress: string | null;
 }
 
+// Common core payload you can reuse in all user prompts
 export interface TripCoreInput {
   tripId: string;
   tripName?: string;
   primaryLocation?: string | null;
   baseCurrency?: string | null;
-  startDate?: string | null; // ISO string
-  endDate?: string | null; // ISO string
+  startDate: string | null; // ISO date string: "2026-02-15"
+  endDate: string | null; // ISO date string: "2026-02-20"
   memberCount?: number;
-  members?: TripMemberInput[];
+  members?: Array<{
+    memberId: string;
+    displayName: string;
+    email: string | null;
+    userId: string | null;
+  }>;
   expenseSummary?: TripExpenseSummaryInput;
   expenses?: TripExpenseInput[];
   itinerary?: TripItineraryItemInput[];
 }
 
 export const TRIP_BASE_USER_PROMPT_TEMPLATE = `
-Trip context arrives as JSON following the TripCoreInput type above.
+You are given core trip data in JSON format:
 
-Guidance:
-- Dates are ISO 8601 strings; null means not provided.
-- Expense lists may be truncated, but totalsByCurrency and totalExpenses give scale.
-- Use only the provided data; call out gaps instead of inventing specifics.
+{{trip_core_json}}
+
+This JSON matches the following TypeScript interface structure for trip core data.
 `;

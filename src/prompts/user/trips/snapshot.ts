@@ -1,10 +1,6 @@
 import { TripCoreInput } from "./base";
 
-export interface TripSnapshotInput extends TripCoreInput {
-  // Optional hints if you have them
-  tripName?: string; // "Whistler Ski Trip"
-  primaryActivities?: string[]; // ["skiing", "snowboarding", "village nightlife"]
-}
+export type TripSnapshotInput = TripCoreInput;
 
 export const TRIP_SNAPSHOT_USER_PROMPT_TEMPLATE = `
 You are given core trip data in JSON format:
