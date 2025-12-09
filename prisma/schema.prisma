@@ -136,9 +136,10 @@ model AuthVerification {
 }
 
 model Group {
-  id          String        @id @default(cuid()) @map("id")
-  name        String        @map("name")
-  type        GroupType     @default(PROJECT) @map("type")
+  id            String        @id @default(cuid()) @map("id")
+  name          String        @map("name")
+  description   String?       @map("description")
+  type          GroupType     @default(PROJECT) @map("type")
 
   // trip-specific metadata (used when type = TRIP)
   startDate   DateTime?     @map("start_date") @db.Date
@@ -167,6 +168,7 @@ model GroupMember {
   userId             String?              @map("user_id")
   displayName        String               @map("display_name")
   email              String?              @map("email")
+  location           String?              @map("location")
   participantEntries ExpenseParticipant[] @relation("ExpenseParticipantMember")
   paymentsMade       ExpensePayment[]     @relation("ExpensePaymentPayer")
   settlementsFrom    Settlement[]         @relation("SettlementFrom")

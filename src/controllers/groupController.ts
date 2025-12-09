@@ -11,6 +11,7 @@ const createGroupSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   location: z.string().optional(),
+  description: z.string().max(1000, "Description is too long").optional(),
 });
 
 const getGroupParamsSchema = z.object({
@@ -67,7 +68,7 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
       throw new ApiError("Unauthorized", 401);
     }
 
-    const { name, type, startDate, endDate, location } = createGroupSchema.parse(req.body);
+    const { name, type, startDate, endDate, location, description } = createGroupSchema.parse(req.body);
 
     const fallbackName = req.user.name ?? req.user.email ?? "Creator";
     const fallbackEmail = req.user.email ?? undefined;
@@ -79,6 +80,7 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
         primaryLocation: location || undefined,
+        description: description || undefined,
         members: {
           create: {
             userId: req.user.id,

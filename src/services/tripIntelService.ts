@@ -137,7 +137,13 @@ const buildTripSnapshotInput = (trip: TripWithContext, expenseSummary: TripExpen
     itinerary: mapItineraryItems(trip.tripItineraryItems),
   };
 
-  return tripCore;
+  return {
+    ...tripCore,
+    destination: trip.primaryLocation ?? trip.name,
+    startDate: trip.startDate ? trip.startDate.toISOString() : "",
+    endDate: trip.endDate ? trip.endDate.toISOString() : "",
+    travelersCount: trip.members.length || undefined,
+  };
 };
 
 const buildUserPrompt = (tripInput: TripSnapshotInput): string => {
