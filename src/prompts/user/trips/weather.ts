@@ -1,26 +1,4 @@
-import { TripCoreInput } from "./base";
-
-export interface TripWeatherInput extends TripCoreInput {
-  destination: string; // e.g. "Whistler, British Columbia, Canada"
-  startDate: string; // ISO: "2026-02-15"
-  endDate: string; // ISO: "2026-02-20"
-  regionHint?: string; // Optional: "Pacific Northwest", "Alps", etc.
-}
-
 export const TRIP_WEATHER_USER_PROMPT_TEMPLATE = `
-You are given structured trip weather input in JSON format:
-
-{{trip_core_json}}
-
-This JSON matches the following TypeScript type:
-
-interface TripWeatherInput {
-  destination: string;
-  startDate: string;
-  endDate: string;
-  regionHint?: string;
-}
-
 Use ONLY this data and general seasonal knowledge to describe typical weather for this destination and time of year.
 
 Follow this exact output format and nothing else:

@@ -1,32 +1,4 @@
-import { TripCoreInput } from "./base";
-
-export interface TripSnapshotInput extends TripCoreInput {
-  destination: string; // "Whistler, British Columbia"
-  startDate: string; // "2026-02-15"
-  endDate: string; // "2026-02-20"
-  travelerOrigin?: string; // "San Francisco, CA"
-  travelersCount?: number; // optional
-  primaryActivities?: string[]; // e.g. ["skiing", "snowboarding"]
-  tripIntent?: "leisure" | "business" | "mixed";
-}
-
 export const TRIP_SNAPSHOT_USER_PROMPT_TEMPLATE = `
-You are given structured trip snapshot input in JSON format:
-
-{{trip_core_json}}
-
-This JSON matches the following TypeScript type:
-
-interface TripSnapshotInput {
-  destination: string;
-  startDate: string;
-  endDate: string;
-  travelerOrigin?: string;
-  travelersCount?: number;
-  primaryActivities?: string[];
-  tripIntent?: "leisure" | "business" | "mixed";
-}
-
 Use ONLY this data and general seasonal knowledge to generate three sections: Trip Overview, Trip Vibe, and Planning Posture.
 
 Trip Overview:

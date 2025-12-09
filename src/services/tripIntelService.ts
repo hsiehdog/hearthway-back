@@ -18,7 +18,6 @@ import type {
 } from "../prompts/user/trips/base";
 import { TRIP_SNAPSHOT_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/snapshot";
 import { TRIP_WEATHER_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/weather";
-import type { TripSnapshotInput } from "../prompts/user/trips/snapshot";
 import { TRIP_CURRENCY_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/currency";
 import { TRIP_PACKING_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/packing";
 import {
@@ -26,13 +25,19 @@ import {
   getTripIntelFromCache,
   setTripIntelCache,
 } from "./tripIntelCache";
+import { logger } from "../utils/logger";
 
 const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
 
 const MAX_EXPENSES_FOR_PROMPT = 25;
 const MAX_ITINERARY_ITEMS_FOR_PROMPT = 25;
 const DEFAULT_SECTIONS = ["snapshot"] as const;
-export const SUPPORTED_SECTIONS = ["snapshot", "weather", "currency", "packing"] as const;
+export const SUPPORTED_SECTIONS = [
+  "snapshot",
+  "weather",
+  "currency",
+  "packing",
+] as const;
 export type TripIntelSection = (typeof SUPPORTED_SECTIONS)[number];
 
 type TripWithContext = Prisma.GroupGetPayload<{
@@ -56,7 +61,9 @@ type ExpenseTotalsRow = {
   _count: { _all: number };
 };
 
-const toNumber = (value: Prisma.Decimal | number | string | null | undefined): number => {
+const toNumber = (
+  value: Prisma.Decimal | number | string | null | undefined
+): number => {
   if (value instanceof Prisma.Decimal) {
     return value.toNumber();
   }
@@ -72,7 +79,10 @@ const toNumber = (value: Prisma.Decimal | number | string | null | undefined): n
   return 0;
 };
 
-const buildExpenseSummary = (totals: ExpenseTotalsRow[], latestExpenseDate: Date | null): TripExpenseSummaryInput => {
+const buildExpenseSummary = (
+  totals: ExpenseTotalsRow[],
+  latestExpenseDate: Date | null
+): TripExpenseSummaryInput => {
   const totalsByCurrency = totals.map((row) => ({
     currency: row.currency,
     total: toNumber(row._sum.amount),
@@ -84,11 +94,15 @@ const buildExpenseSummary = (totals: ExpenseTotalsRow[], latestExpenseDate: Date
   return {
     totalExpenses,
     totalsByCurrency,
-    latestExpenseDate: latestExpenseDate ? latestExpenseDate.toISOString() : null,
+    latestExpenseDate: latestExpenseDate
+      ? latestExpenseDate.toISOString()
+      : null,
   };
 };
 
-const mapExpenses = (expenses: TripWithContext["expenses"]): TripExpenseInput[] => {
+const mapExpenses = (
+  expenses: TripWithContext["expenses"]
+): TripExpenseInput[] => {
   return expenses.map((expense) => ({
     expenseId: expense.id,
     name: expense.name,
@@ -103,7 +117,9 @@ const mapExpenses = (expenses: TripWithContext["expenses"]): TripExpenseInput[] 
   }));
 };
 
-const mapItineraryItems = (items: TripWithContext["tripItineraryItems"]): TripItineraryItemInput[] => {
+const mapItineraryItems = (
+  items: TripWithContext["tripItineraryItems"]
+): TripItineraryItemInput[] => {
   return items.map((item) => ({
     id: item.id,
     type: item.type,
@@ -117,7 +133,10 @@ const mapItineraryItems = (items: TripWithContext["tripItineraryItems"]): TripIt
   }));
 };
 
-const buildTripSnapshotInput = (trip: TripWithContext, expenseSummary: TripExpenseSummaryInput): TripSnapshotInput => {
+const buildTripInput = (
+  trip: TripWithContext,
+  expenseSummary: TripExpenseSummaryInput
+): TripCoreInput => {
   const tripCore: TripCoreInput = {
     tripId: trip.id,
     tripName: trip.name,
@@ -137,22 +156,7 @@ const buildTripSnapshotInput = (trip: TripWithContext, expenseSummary: TripExpen
     expenses: mapExpenses(trip.expenses),
     itinerary: mapItineraryItems(trip.tripItineraryItems),
   };
-
-  return {
-    ...tripCore,
-    destination: trip.primaryLocation ?? trip.name,
-    startDate: trip.startDate ? trip.startDate.toISOString() : "",
-    endDate: trip.endDate ? trip.endDate.toISOString() : "",
-    travelersCount: trip.members.length || undefined,
-  };
-};
-
-const buildUserPrompt = (tripInput: TripSnapshotInput): string => {
-  const combinedTemplate = [TRIP_BASE_USER_PROMPT_TEMPLATE, TRIP_SNAPSHOT_USER_PROMPT_TEMPLATE]
-    .map((prompt) => prompt.trim())
-    .join("\n\n");
-
-  return combinedTemplate.replace(/{{trip_core_json}}/g, JSON.stringify(tripInput, null, 2));
+  return tripCore;
 };
 
 const sectionSystemPrompts: Record<TripIntelSection, string> = {
@@ -170,7 +174,10 @@ const sectionSystemPrompts: Record<TripIntelSection, string> = {
     .join("\n\n"),
 };
 
-const buildUserPromptForSection = (section: TripIntelSection, tripInput: TripSnapshotInput): string => {
+const buildUserPromptForSection = (
+  section: TripIntelSection,
+  tripInput: TripCoreInput
+): string => {
   const template = {
     snapshot: TRIP_SNAPSHOT_USER_PROMPT_TEMPLATE,
     weather: TRIP_WEATHER_USER_PROMPT_TEMPLATE,
@@ -252,11 +259,13 @@ export const tripIntelService = {
 
     const expenseSummary = buildExpenseSummary(
       expenseTotals as ExpenseTotalsRow[],
-      latestExpenseDate?.date ?? null,
+      latestExpenseDate?.date ?? null
     );
 
-    const tripInput = buildTripSnapshotInput(trip, expenseSummary);
-    const requestedSections = (sections?.length ? sections : DEFAULT_SECTIONS).filter((section, index, arr) => {
+    const tripInput = buildTripInput(trip, expenseSummary);
+    const requestedSections = (
+      sections?.length ? sections : DEFAULT_SECTIONS
+    ).filter((section, index, arr) => {
       return arr.indexOf(section) === index;
     });
 
@@ -266,7 +275,11 @@ export const tripIntelService = {
         const shouldForceRefresh = forceRefreshSections?.includes(section);
 
         if (!shouldForceRefresh) {
-          const cached = await getTripIntelFromCache(tripId, section, inputHash);
+          const cached = await getTripIntelFromCache(
+            tripId,
+            section,
+            inputHash
+          );
           if (cached) {
             return { section, payload: { ...cached, fromCache: true } };
           }
@@ -275,10 +288,24 @@ export const tripIntelService = {
         const userPrompt = buildUserPromptForSection(section, tripInput);
         const systemPrompt = sectionSystemPrompts[section];
 
+        logger.info("[TripIntel] Sending prompts to LLM", {
+          tripId,
+          section,
+          systemPrompt,
+          userPrompt,
+        });
+
         const result = await generateText({
           model: openai(env.AI_MODEL),
           system: systemPrompt,
           messages: [{ role: "user", content: userPrompt }],
+        });
+
+        logger.info("[TripIntel] Received LLM response", {
+          tripId,
+          section,
+          model: env.AI_MODEL,
+          responseText: result.text,
         });
 
         const payload: TripIntelSectionResponse = {
@@ -291,16 +318,19 @@ export const tripIntelService = {
         await setTripIntelCache(tripId, section, inputHash, payload);
 
         return { section, payload };
-      }),
+      })
     );
 
     return {
       tripId,
       sections: {
-        ...sectionResults.reduce<TripIntelResponse["sections"]>((acc, { section, payload }) => {
-          acc[section] = payload;
-          return acc;
-        }, {}),
+        ...sectionResults.reduce<TripIntelResponse["sections"]>(
+          (acc, { section, payload }) => {
+            acc[section] = payload;
+            return acc;
+          },
+          {}
+        ),
       },
     };
   },
