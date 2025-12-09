@@ -1,30 +1,42 @@
 import { TripCoreInput } from "./base";
 
 export interface TripPackingInput extends TripCoreInput {
-  primaryActivities?: string[]; // ["skiing", "fine dining"]
-  lodgingTypeHint?: string; // "resort", "city hotel", "apartment", "cabin"
+  destination: string; // "Whistler, British Columbia"
+  startDate: string; // "2026-02-15"
+  endDate: string; // "2026-02-20"
+  primaryActivities?: string[]; // ["skiing", "snowboarding"]
+  climateHint?: string; // "winter mountain"
 }
 
 export const TRIP_PACKING_USER_PROMPT_TEMPLATE = `
-You are given core trip data in JSON format:
+You are given structured trip packing input in JSON format:
 
 {{trip_core_json}}
 
 This JSON matches the following TypeScript type:
 
-interface TripPackingInput extends TripCoreInput {
+interface TripPackingInput {
+  destination: string;
+  startDate: string;
+  endDate: string;
   primaryActivities?: string[];
-  lodgingTypeHint?: string;
+  climateHint?: string;
 }
 
-Use this data to suggest practical packing guidance, focusing on clothing layers, footwear, weather-related gear, and activity-specific items.
+Use ONLY this data and general seasonal knowledge to generate a concise packing checklist.
 
-Do NOT mention specific brands or encourage purchases.
-
-Output format:
+Follow this exact output format:
 
 Packing Suggestions:
-- Bullet
-- Bullet
-- Bullet
+- Core clothing: <one concise sentence>
+- Footwear: <one concise sentence>
+- Activity gear: <one concise sentence>
+- Weather accessories: <one concise sentence>
+- Essentials & electronics: <one concise sentence>
+
+Do not include:
+- Long explanations
+- Safety training notes
+- Rental advice
+- Conditional backcountry language
 `;

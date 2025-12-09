@@ -1,33 +1,35 @@
 import { TripCoreInput } from "./base";
 
 export interface TripCurrencyInput extends TripCoreInput {
-  destinationCountryCode?: string; // "CA", "US", "JP", etc.
+  destination: string; // "Nashville, Tennessee, USA"
+  destinationCountryCode?: string; // "US", "CA", "JP", etc.
   homeCountryCode?: string; // "US", "GB", etc.
 }
 
 export const TRIP_CURRENCY_USER_PROMPT_TEMPLATE = `
-You are given core trip data in JSON format:
+You are given structured trip currency input in JSON format:
 
 {{trip_core_json}}
 
 This JSON matches the following TypeScript type:
 
-interface TripCurrencyInput extends TripCoreInput {
+interface TripCurrencyInput {
+  destination: string;
   destinationCountryCode?: string;
   homeCountryCode?: string;
 }
 
-Use this data to describe:
-- The likely local currency
-- General card vs cash norms
-- Typical tipping expectations (where applicable)
+Use ONLY this data and general knowledge to describe:
+- The local currency
+- How commonly cards vs cash are used
+- Whether tipping or service charges are customary
 
-Do NOT give exchange rates or legal/tax advice.
-
-Output format:
+Follow this exact output format:
 
 Currency & Payments:
-- Bullet
-- Bullet
-- Bullet
+- Local currency: <one concise sentence>
+- Cards vs cash: <one concise sentence>
+- Tipping: <one concise sentence>
+
+Do not include itemized tipping by role, dollar amounts, ATM advice, or warnings about fraud.
 `;
