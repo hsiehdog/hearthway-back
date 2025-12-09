@@ -46,6 +46,7 @@ export interface TripCoreInput {
   baseCurrency?: string | null;
   startDate: string | null; // ISO date string: "2026-02-15"
   endDate: string | null; // ISO date string: "2026-02-20"
+  userOriginLocation?: string | null;
   memberCount?: number;
   members?: Array<{
     memberId: string;

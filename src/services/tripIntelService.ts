@@ -9,6 +9,7 @@ import { TRIP_SNAPSHOT_SYSTEM_PROMPT } from "../prompts/system/trips/snapshot";
 import { TRIP_WEATHER_SYSTEM_PROMPT } from "../prompts/system/trips/weather";
 import { TRIP_CURRENCY_SYSTEM_PROMPT } from "../prompts/system/trips/currency";
 import { TRIP_PACKING_SYSTEM_PROMPT } from "../prompts/system/trips/packing";
+import { TRIP_TRANSPORTATION_SYSTEM_PROMPT } from "../prompts/system/trips/transportation";
 import { TRIP_BASE_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/base";
 import type {
   TripCoreInput,
@@ -20,6 +21,7 @@ import { TRIP_SNAPSHOT_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/snapsh
 import { TRIP_WEATHER_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/weather";
 import { TRIP_CURRENCY_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/currency";
 import { TRIP_PACKING_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/packing";
+import { TRIP_TRANSPORTATION_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/transportation";
 import {
   buildTripIntelInputHash,
   getTripIntelFromCache,
@@ -37,6 +39,7 @@ export const SUPPORTED_SECTIONS = [
   "weather",
   "currency",
   "packing",
+  "transportation",
 ] as const;
 export type TripIntelSection = (typeof SUPPORTED_SECTIONS)[number];
 
@@ -135,8 +138,11 @@ const mapItineraryItems = (
 
 const buildTripInput = (
   trip: TripWithContext,
-  expenseSummary: TripExpenseSummaryInput
+  expenseSummary: TripExpenseSummaryInput,
+  userId: string
 ): TripCoreInput => {
+  const callerMember = trip.members.find((member) => member.userId === userId);
+
   const tripCore: TripCoreInput = {
     tripId: trip.id,
     tripName: trip.name,
@@ -146,6 +152,7 @@ const buildTripInput = (
     startDate: trip.startDate ? trip.startDate.toISOString() : null,
     endDate: trip.endDate ? trip.endDate.toISOString() : null,
     memberCount: trip.members.length,
+    userOriginLocation: callerMember?.location ?? null,
     members: trip.members.map((member) => ({
       memberId: member.id,
       displayName: member.displayName,
@@ -172,6 +179,9 @@ const sectionSystemPrompts: Record<TripIntelSection, string> = {
   packing: [TRIP_BASE_SYSTEM_PROMPT, TRIP_PACKING_SYSTEM_PROMPT]
     .map((prompt) => prompt.trim())
     .join("\n\n"),
+  transportation: [TRIP_BASE_SYSTEM_PROMPT, TRIP_TRANSPORTATION_SYSTEM_PROMPT]
+    .map((prompt) => prompt.trim())
+    .join("\n\n"),
 };
 
 const buildUserPromptForSection = (
@@ -183,6 +193,7 @@ const buildUserPromptForSection = (
     weather: TRIP_WEATHER_USER_PROMPT_TEMPLATE,
     currency: TRIP_CURRENCY_USER_PROMPT_TEMPLATE,
     packing: TRIP_PACKING_USER_PROMPT_TEMPLATE,
+    transportation: TRIP_TRANSPORTATION_USER_PROMPT_TEMPLATE,
   }[section];
 
   return [TRIP_BASE_USER_PROMPT_TEMPLATE.trim(), template.trim()]
@@ -262,7 +273,7 @@ export const tripIntelService = {
       latestExpenseDate?.date ?? null
     );
 
-    const tripInput = buildTripInput(trip, expenseSummary);
+    const tripInput = buildTripInput(trip, expenseSummary, userId);
     const requestedSections = (
       sections?.length ? sections : DEFAULT_SECTIONS
     ).filter((section, index, arr) => {

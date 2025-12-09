@@ -101,8 +101,8 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
         .getTripSnapshot({
           tripId: group.id,
           userId: req.user.id,
-          sections: ["snapshot", "weather", "currency", "packing"],
-          forceRefreshSections: ["snapshot", "weather", "currency", "packing"],
+          sections: ["snapshot", "weather", "currency", "packing", "transportation"],
+          forceRefreshSections: ["snapshot", "weather", "currency", "packing", "transportation"],
         })
         .catch((error) => {
           logger.error("Failed to precompute trip intel", { groupId: group.id, error });
