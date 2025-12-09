@@ -122,6 +122,7 @@ const buildTripSnapshotInput = (trip: TripWithContext, expenseSummary: TripExpen
     tripId: trip.id,
     tripName: trip.name,
     primaryLocation: trip.primaryLocation ?? null,
+    description: trip.description ?? null,
     baseCurrency: trip.baseCurrency ?? null,
     startDate: trip.startDate ? trip.startDate.toISOString() : null,
     endDate: trip.endDate ? trip.endDate.toISOString() : null,

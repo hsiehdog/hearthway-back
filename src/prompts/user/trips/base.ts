@@ -41,6 +41,7 @@ export interface TripCoreInput {
   tripId: string;
   tripName?: string;
   primaryLocation?: string | null;
+  description?: string | null;
   baseCurrency?: string | null;
   startDate: string | null; // ISO date string: "2026-02-15"
   endDate: string | null; // ISO date string: "2026-02-20"
@@ -62,4 +63,6 @@ You are given core trip data in JSON format:
 {{trip_core_json}}
 
 This JSON matches the following TypeScript interface structure for trip core data.
+
+If provided, "description" is a short free-form note from the creator about the trip context.
 `;

@@ -4,6 +4,8 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../middleware/errorHandler";
 import { addParticipantCosts } from "../lib/expense";
+import { tripIntelService } from "../services/tripIntelService";
+import { logger } from "../utils/logger";
 
 const createGroupSchema = z.object({
   name: z.string().min(1, "Name is required").max(200, "Name is too long"),
@@ -93,6 +95,19 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
         members: true,
       },
     });
+
+    if (group.type === GroupType.TRIP) {
+      tripIntelService
+        .getTripSnapshot({
+          tripId: group.id,
+          userId: req.user.id,
+          sections: ["snapshot", "weather", "currency", "packing"],
+          forceRefreshSections: ["snapshot", "weather", "currency", "packing"],
+        })
+        .catch((error) => {
+          logger.error("Failed to precompute trip intel", { groupId: group.id, error });
+        });
+    }
 
     res.status(201).json({ group });
   } catch (error) {
