@@ -21,6 +21,11 @@ import { TRIP_WEATHER_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/weather
 import type { TripSnapshotInput } from "../prompts/user/trips/snapshot";
 import { TRIP_CURRENCY_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/currency";
 import { TRIP_PACKING_USER_PROMPT_TEMPLATE } from "../prompts/user/trips/packing";
+import {
+  buildTripIntelInputHash,
+  getTripIntelFromCache,
+  setTripIntelCache,
+} from "./tripIntelCache";
 
 const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
 
@@ -188,10 +193,12 @@ export const tripIntelService = {
     tripId,
     userId,
     sections,
+    forceRefreshSections,
   }: {
     tripId: string;
     userId: string;
     sections?: TripIntelSection[];
+    forceRefreshSections?: TripIntelSection[];
   }): Promise<TripIntelResponse> {
     const trip = await prisma.group.findUnique({
       where: { id: tripId },
@@ -248,6 +255,16 @@ export const tripIntelService = {
 
     const sectionResults = await Promise.all(
       requestedSections.map(async (section) => {
+        const inputHash = buildTripIntelInputHash(tripInput, section);
+        const shouldForceRefresh = forceRefreshSections?.includes(section);
+
+        if (!shouldForceRefresh) {
+          const cached = await getTripIntelFromCache(tripId, section, inputHash);
+          if (cached) {
+            return { section, payload: { ...cached, fromCache: true } };
+          }
+        }
+
         const userPrompt = buildUserPromptForSection(section, tripInput);
         const systemPrompt = sectionSystemPrompts[section];
 
@@ -263,6 +280,8 @@ export const tripIntelService = {
           model: env.AI_MODEL,
           fromCache: false,
         };
+
+        await setTripIntelCache(tripId, section, inputHash, payload);
 
         return { section, payload };
       }),

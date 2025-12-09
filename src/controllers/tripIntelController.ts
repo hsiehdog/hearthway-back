@@ -9,6 +9,10 @@ const tripIntelParamsSchema = z.object({
 
 const tripIntelQuerySchema = z.object({
   sections: z.string().optional(),
+  force: z
+    .string()
+    .optional()
+    .transform((val) => val === "true" || val === "1"),
 });
 
 export const getTripIntel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -18,7 +22,7 @@ export const getTripIntel = async (req: Request, res: Response, next: NextFuncti
     }
 
     const { tripId } = tripIntelParamsSchema.parse(req.params);
-    const { sections } = tripIntelQuerySchema.parse(req.query);
+    const { sections, force } = tripIntelQuerySchema.parse(req.query);
 
     const requestedSections = sections
       ? sections
@@ -38,6 +42,7 @@ export const getTripIntel = async (req: Request, res: Response, next: NextFuncti
     const intel = await tripIntelService.getTripSnapshot({
       tripId,
       userId: req.user.id,
+      forceRefreshSections: force ? (requestedSections as TripIntelSection[]) : [],
       sections: requestedSections as TripIntelSection[],
     });
 
