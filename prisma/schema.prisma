@@ -60,6 +60,26 @@ enum TripItineraryItemStatus {
   CANCELLED  // was planned or booked, but dropped
 }
 
+enum TripTransportMode {
+  FLIGHT
+  TRAIN
+  CAR
+  RENTAL_CAR
+  RIDE_SHARE
+  BUS
+  FERRY
+  OTHER
+}
+
+enum TripLocationType {
+  AIRPORT
+  TRAIN_STATION
+  CITY
+  ADDRESS
+  PORT
+  OTHER
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -173,6 +193,7 @@ model GroupMember {
   paymentsMade       ExpensePayment[]     @relation("ExpensePaymentPayer")
   settlementsFrom    Settlement[]         @relation("SettlementFrom")
   settlementsTo      Settlement[]         @relation("SettlementTo")
+  itineraryAssignments TripItineraryItemAssignment[]
   uploads            UploadedExpense[]    @relation("Uploader")
   createdAt          DateTime             @default(now()) @map("created_at")
 
@@ -325,6 +346,37 @@ model TripItineraryItem {
   locationAddress String?            @map("location_address") // "45 Bd Raspail, Paris"
   locationUrl     String?            @map("location_url")     // maps/deeplink/bookings
 
+  // Shared transport (used for FLIGHT + TRANSPORT)
+  transportMode               TripTransportMode? @map("transport_mode")
+
+  originName                  String?            @map("origin_name")
+  originAddress               String?            @map("origin_address")
+  originLocationCode          String?            @map("origin_location_code")
+  originLocationType          TripLocationType?  @map("origin_location_type")
+
+  destinationName             String?            @map("destination_name")
+  destinationAddress          String?            @map("destination_address")
+  destinationLocationCode     String?            @map("destination_location_code")
+  destinationLocationType     TripLocationType?  @map("destination_location_type")
+
+  transportNumber             String?            @map("transport_number")  // works for flight, train, etc.
+
+  // Flight-only extras (still on same model)
+  airlineCode                 String?            @map("airline_code")
+  airlineName                 String?            @map("airline_name")
+  flightNumber                String?            @map("flight_number")
+  flightStatus                String?            @map("flight_status")
+
+  departureTerminal           String?            @map("departure_terminal")
+  departureGate               String?            @map("departure_gate")
+  arrivalTerminal             String?            @map("arrival_terminal")
+  arrivalGate                 String?            @map("arrival_gate")
+
+  rawTransportPayload         Json?              @map("raw_transport_payload")
+
+  // Relation
+  memberAssignments           TripItineraryItemAssignment[]
+
   // Booking details (optional, but useful)
   confirmationCode String?           @map("confirmation_code")
   provider         String?           @map("provider")         // "Air France", "Airbnb"
@@ -341,4 +393,22 @@ model TripItineraryItem {
   @@index([groupId])
   @@index([startDateTime])
   @@map("trip_itinerary_items")
+}
+
+model TripItineraryItemAssignment {
+  id               String            @id @default(cuid()) @map("id")
+
+  itineraryItemId  String            @map("trip_itinerary_item_id")
+  memberId         String            @map("member_id")
+
+  role             String?           @map("role")
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  itineraryItem    TripItineraryItem @relation(fields: [itineraryItemId], references: [id])
+  member           GroupMember       @relation(fields: [memberId], references: [id])
+
+  @@unique([itineraryItemId, memberId])
+  @@index([itineraryItemId])
+  @@index([memberId])
+  @@map("trip_itinerary_item_assignments")
 }
