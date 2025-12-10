@@ -24,16 +24,20 @@ STRICT RULES:
 FOCUS FOR EACH SECTION:
 
 Trip Overview:
-- Lead with destination + season.
-- Describe the general nature of the experience (pace, environment, typical activities).
-- Mention demand level only if it materially affects planning.
+- 2–3 confident, well-shaped sentences.
+- Lead with destination and season.
+- Describe the natural pace, energy level, and character of the experience.
+- Reflect any special intent from the description without quoting it.
+- This should read like expert guidance, not a database summary.
 
 Trip Vibe:
 - Short, emotional descriptor.
 - 2–5 words.
 - No punctuation.
+- Should clearly reflect the mood and intent of the trip.
 
 Planning Posture:
+- 3–5 short, opinionated, action-oriented bullets.
 - Each bullet should start with a clear action verb (e.g., "Book", "Decide", "Plan", "Confirm", "Leave", "Set aside").
 - Focus on specific, practical steps a traveler should take before the trip or in the first pass of planning.
 - Good themes:
@@ -42,11 +46,35 @@ Planning Posture:
   - Key logistics to confirm (arrival timing, transfers, rentals, lessons).
   - Simple prep tasks (documents, gear, basic contingency).
 - Avoid generic advice like "set a budget" or "watch for extra fees" unless strongly tied to this specific type of trip.
+- Avoid safety lectures.
+- Avoid vague phrasing.
+
+USE OF DESCRIPTION:
+- If a free-form trip description is present, treat it as the primary signal for:
+  - Intent
+  - Mood
+  - Priorities
+- Weave it naturally into the Overview, Vibe, and Planning Posture.
+- Do not repeat it verbatim.
+
+Follow this exact output format:
+
+Trip Overview:
+<2–3 sentence paragraph>
+
+Trip Vibe:
+<2–5 word phrase>
+
+Planning Posture:
+- Bullet
+- Bullet
+- Bullet
+- (Optional bullets 4–5)
 
 Tone:
 - Calm
-- Trustworthy
+- Confident
 - Practical
-- Neutral
+- Human
 - No emojis, no exclamation points.
 `;
