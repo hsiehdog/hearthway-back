@@ -71,6 +71,8 @@ pnpm worker:prod
 | `TRUSTED_ORIGINS` | Comma-separated origins allowed for cross-site credentials (e.g., `http://localhost:3000`). |
 | `OPENAI_API_KEY` | API key for the Vercel AI SDK provider. |
 | `AI_MODEL` | Model name for LLM calls (default `gpt-4o-mini`). |
+| `AERO_API_URL` | Base URL for Aero API flight data. |
+| `AERO_API_KEY` | API key for Aero API requests (`x-apikey` header). |
 | `AWS_S3_BUCKET` / `AWS_S3_REGION` | S3 bucket/region for uploads. |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Credentials for S3 (or compatible storage). |
 | `AWS_S3_ENDPOINT` | Optional custom endpoint (e.g., MinIO). |

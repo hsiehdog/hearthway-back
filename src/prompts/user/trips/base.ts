@@ -34,6 +34,37 @@ export interface TripItineraryItemInput {
   allDay: boolean;
   locationName: string | null;
   locationAddress: string | null;
+  description?: string | null;
+  locationUrl?: string | null;
+  transportMode?: string | null;
+  originLocationCode?: string | null;
+  originLocationType?: string | null;
+  originName?: string | null;
+  originAddress?: string | null;
+  destinationLocationCode?: string | null;
+  destinationLocationType?: string | null;
+  destinationName?: string | null;
+  destinationAddress?: string | null;
+  transportNumber?: string | null;
+  airlineCode?: string | null;
+  airlineName?: string | null;
+  flightNumber?: string | null;
+  flightStatus?: string | null;
+  departureTerminal?: string | null;
+  departureGate?: string | null;
+  arrivalTerminal?: string | null;
+  arrivalGate?: string | null;
+  confirmationCode?: string | null;
+  provider?: string | null;
+  referenceUrl?: string | null;
+  sortOrder?: number;
+  memberAssignments?: Array<{
+    memberId: string;
+    role?: string | null;
+    displayName?: string | null;
+    userId?: string | null;
+  }>;
+  rawTransportPayload?: unknown;
 }
 
 // Common core payload you can reuse in all user prompts

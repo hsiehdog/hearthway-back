@@ -19,6 +19,8 @@ const envSchema = z.object({
   TRUSTED_ORIGINS: z.string().optional(),
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
   AI_MODEL: z.string().default("gpt-5.1-mini"),
+  AERO_API_URL: z.string().url().optional(),
+  AERO_API_KEY: z.string().min(1, "AERO_API_KEY is required"),
 });
 
 const env = envSchema.parse(process.env);

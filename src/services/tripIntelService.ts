@@ -52,6 +52,9 @@ type TripWithContext = Prisma.GroupGetPayload<{
       take: typeof MAX_EXPENSES_FOR_PROMPT;
     };
     tripItineraryItems: {
+      include: {
+        memberAssignments: { include: { member: true } };
+      };
       orderBy: { startDateTime: "asc" };
       take: typeof MAX_ITINERARY_ITEMS_FOR_PROMPT;
     };
@@ -133,6 +136,37 @@ const mapItineraryItems = (
     allDay: item.allDay,
     locationName: item.locationName,
     locationAddress: item.locationAddress,
+    description: item.description ?? null,
+    locationUrl: item.locationUrl ?? null,
+    transportMode: item.transportMode ?? null,
+    originLocationCode: item.originLocationCode ?? null,
+    originLocationType: item.originLocationType ?? null,
+    originName: item.originName ?? null,
+    originAddress: item.originAddress ?? null,
+    destinationLocationCode: item.destinationLocationCode ?? null,
+    destinationLocationType: item.destinationLocationType ?? null,
+    destinationName: item.destinationName ?? null,
+    destinationAddress: item.destinationAddress ?? null,
+    transportNumber: item.transportNumber ?? null,
+    airlineCode: item.airlineCode ?? null,
+    airlineName: item.airlineName ?? null,
+    flightNumber: item.flightNumber ?? null,
+    flightStatus: item.flightStatus ?? null,
+    departureTerminal: item.departureTerminal ?? null,
+    departureGate: item.departureGate ?? null,
+    arrivalTerminal: item.arrivalTerminal ?? null,
+    arrivalGate: item.arrivalGate ?? null,
+    confirmationCode: item.confirmationCode ?? null,
+    provider: item.provider ?? null,
+    referenceUrl: item.referenceUrl ?? null,
+    sortOrder: item.sortOrder,
+    memberAssignments: item.memberAssignments?.map((assignment) => ({
+      memberId: assignment.memberId,
+      role: assignment.role ?? null,
+      displayName: assignment.member?.displayName ?? null,
+      userId: assignment.member?.userId ?? null,
+    })),
+    rawTransportPayload: item.rawTransportPayload ?? undefined,
   }));
 };
 
@@ -235,6 +269,7 @@ export const tripIntelService = {
           take: MAX_EXPENSES_FOR_PROMPT,
         },
         tripItineraryItems: {
+          include: { memberAssignments: { include: { member: true } } },
           orderBy: { startDateTime: "asc" },
           take: MAX_ITINERARY_ITEMS_FOR_PROMPT,
         },
