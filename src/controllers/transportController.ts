@@ -268,7 +268,21 @@ export const getMemberTransport = async (
       },
     });
 
-    const transports = assignments.map((assignment) => assignment.itineraryItem);
+    const transports = assignments.map((assignment) => {
+      const item = assignment.itineraryItem;
+      const origin = item.originLocationCode
+        ? AIRPORTS_BY_CODE[item.originLocationCode.toUpperCase()]
+        : undefined;
+      const destination = item.destinationLocationCode
+        ? AIRPORTS_BY_CODE[item.destinationLocationCode.toUpperCase()]
+        : undefined;
+
+      return {
+        ...item,
+        startTimeZone: origin?.timezone ?? null,
+        endTimeZone: destination?.timezone ?? null,
+      };
+    });
     res.json({ transports });
   } catch (error) {
     if (error instanceof z.ZodError) {
