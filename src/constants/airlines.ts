@@ -80,34 +80,57 @@ export const AIRLINES_BY_NAME: Record<string, Airline> = Object.values(
 // --------------------------------------
 
 /**
- * Normalize and validate an airline code (e.g., "ua" -> "UA").
- * Returns null if invalid.
- */
-export function normalizeAirlineCode(input: string): string | null {
-  if (!input) return null;
-  const code = input.trim().toUpperCase();
-  return AIRLINES_BY_CODE[code] ? code : null;
-}
-
-/**
  * Lookup airline by IATA code.
  */
-export function getAirlineByCode(code: string): Airline | null {
+function getAirlineByCode(code: string): Airline | null {
   if (!code) return null;
-  return AIRLINES_BY_CODE[code.toUpperCase()] ?? null;
+  return AIRLINES_BY_CODE[code.trim().toUpperCase()] ?? null;
 }
 
 /**
  * Lookup airline by full name (case-insensitive).
  */
-export function getAirlineByName(name: string): Airline | null {
+function getAirlineByName(name: string): Airline | null {
   if (!name) return null;
   return AIRLINES_BY_NAME[name.trim().toLowerCase()] ?? null;
 }
 
 /**
+ * Lookup airline by first word of name match (case-insensitive).
+ */
+function getAirlineByPartialName(name: string): Airline | null {
+  if (!name) return null;
+  const normalizedInput = name
+    .toLowerCase()
+    .replace(/\s+air(lines)?$/, "")
+    .trim();
+  const firstInputWord = normalizedInput.split(/\s+/)[0];
+  if (!firstInputWord) return null;
+
+  // Match against the first word of each airline name (case-insensitive).
+  // Examples handled:
+  // - "KLM Royal" -> matches "KLM Royal Dutch Airlines"
+  // - "Southwest air" -> matches "Southwest Airlines"
+  // Minimum requirement: the first word must match exactly (so "Kor" or "Luft" won't match).
+  const match = Object.values(AIRLINES_BY_CODE).find((airline) => {
+    const firstWord = airline.name.toLowerCase().split(/\s+/)[0];
+    // Require exact match of the first word (not a prefix).
+    return (
+      firstWord === firstInputWord && firstWord.length === firstInputWord.length
+    );
+  });
+
+  return match ?? null;
+}
+
+/**
  * Best-effort resolver from either code or name.
  * Useful when parsing user input.
+ *
+ * Handles:
+ * - IATA codes (e.g., "UA", "KL")
+ * - Full names (e.g., "United Airlines", "KLM Royal Dutch Airlines")
+ * - Partial names (e.g., "KLM" -> "KL", "Southwest" -> "WN")
  */
 export function resolveAirline(input: string): Airline | null {
   if (!input) return null;
@@ -115,10 +138,19 @@ export function resolveAirline(input: string): Airline | null {
   const byCode = getAirlineByCode(input);
   if (byCode) return byCode;
 
-  const normalizedName = input
-    .toLowerCase()
-    .replace(/\s+air(lines)?$/, "") // handles "Air", "Airlines"
-    .trim();
+  // Try exact name match first
+  const byName = getAirlineByName(input);
+  if (byName) return byName;
 
-  return getAirlineByName(input) || getAirlineByName(normalizedName) || null;
+  // Try partial (first-word) name match
+  const byPartialName = getAirlineByPartialName(input);
+  if (byPartialName) return byPartialName;
+
+  return null;
+}
+
+export function listAllAirlines(): Airline[] {
+  return Object.values(AIRLINES_BY_CODE).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
 }

@@ -11,6 +11,7 @@ import { AIRLINES_BY_CODE } from "../constants/airlines";
 import { AIRPORTS_BY_CODE } from "../constants/airports";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../middleware/errorHandler";
+import { transportChatService } from "../services/transportChatService";
 
 type AeroSchedule = {
   scheduled_out?: string;
@@ -36,7 +37,12 @@ const memberTransportParamsSchema = z.object({
   memberId: z.string().min(1, "memberId is required"),
 });
 
-const formatDateParam = (value: Date): string => value.toISOString().slice(0, 10);
+const transportChatSchema = z.object({
+  message: z.string().min(1, "message is required"),
+});
+
+const formatDateParam = (value: Date): string =>
+  value.toISOString().slice(0, 10);
 
 export const createFlightItineraryItem = async (
   req: Request,
@@ -102,7 +108,9 @@ export const createFlightItineraryItem = async (
     const endDate = formatDateParam(
       new Date(departureDate.getTime() + 24 * 60 * 60 * 1000)
     );
-
+    console.log("here2");
+    console.log(startDate);
+    console.log(endDate);
     const baseUrl = env.AERO_API_URL.replace(/\/+$/, "");
     const url = `${baseUrl}/schedules/${startDate}/${endDate}?airline=${encodeURIComponent(
       normalizedAirline
@@ -122,8 +130,10 @@ export const createFlightItineraryItem = async (
       if (Array.isArray(payload)) return payload;
       if (payload && typeof payload === "object") {
         const withData = payload as { data?: unknown; scheduled?: unknown };
-        if (Array.isArray(withData.data)) return withData.data as AeroSchedule[];
-        if (Array.isArray(withData.scheduled)) return withData.scheduled as AeroSchedule[];
+        if (Array.isArray(withData.data))
+          return withData.data as AeroSchedule[];
+        if (Array.isArray(withData.scheduled))
+          return withData.scheduled as AeroSchedule[];
       }
       return [];
     })();
@@ -240,7 +250,9 @@ export const getMemberTransport = async (
       throw new ApiError("Group not found", 404);
     }
 
-    const isMember = group.members.some((member) => member.userId === req.user?.id);
+    const isMember = group.members.some(
+      (member) => member.userId === req.user?.id
+    );
     if (!isMember) {
       throw new ApiError("You are not a member of this group", 403);
     }
@@ -284,6 +296,106 @@ export const getMemberTransport = async (
       };
     });
     res.json({ transports });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      next(new ApiError("Invalid request", 400, error.flatten()));
+      return;
+    }
+
+    next(error);
+  }
+};
+
+export const handleTransportChat = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError("Unauthorized", 401);
+    }
+
+    const { groupId } = memberTransportParamsSchema
+      .pick({ groupId: true })
+      .parse(req.params);
+    const { message } = transportChatSchema.parse(req.body);
+
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: { members: true },
+    });
+
+    if (!group) {
+      throw new ApiError("Group not found", 404);
+    }
+
+    const isMember = group.members.some(
+      (member) => member.userId === req.user?.id
+    );
+    if (!isMember) {
+      throw new ApiError("You are not a member of this group", 403);
+    }
+
+    const payload = await transportChatService.handleMessage({
+      userId: req.user.id,
+      groupId,
+      message,
+    });
+
+    res.json({
+      message: payload.message,
+      status: payload.status,
+      pendingAction: payload.pendingAction,
+      options: payload.options,
+      createdItemId: payload.createdItemId,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      next(new ApiError("Invalid request", 400, error.flatten()));
+      return;
+    }
+
+    next(error);
+  }
+};
+
+export const getTransportChatHistory = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError("Unauthorized", 401);
+    }
+
+    const { groupId } = memberTransportParamsSchema
+      .pick({ groupId: true })
+      .parse(req.params);
+
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: { members: true },
+    });
+
+    if (!group) {
+      throw new ApiError("Group not found", 404);
+    }
+
+    const isMember = group.members.some(
+      (member) => member.userId === req.user?.id
+    );
+    if (!isMember) {
+      throw new ApiError("You are not a member of this group", 403);
+    }
+
+    const history = await transportChatService.getHistory({
+      userId: req.user.id,
+      groupId,
+    });
+
+    res.json({ history });
   } catch (error) {
     if (error instanceof z.ZodError) {
       next(new ApiError("Invalid request", 400, error.flatten()));
