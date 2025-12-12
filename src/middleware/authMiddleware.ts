@@ -1,18 +1,14 @@
 import type { RequestHandler } from "express";
 import { auth } from "../lib/auth";
 import { headersFromExpress } from "../utils/http";
+import { ApiError } from "./errorHandler";
 
 export const attachAuthContext: RequestHandler = async (req, _res, next) => {
   try {
-    if (req.path.startsWith("/auth")) {
-      next();
-      return;
-    }
+    if (req.path.startsWith("/auth")) return next();
 
     const session = await auth.api
-      .getSession({
-        headers: headersFromExpress(req.headers),
-      })
+      .getSession({ headers: headersFromExpress(req.headers) })
       .catch(() => null);
 
     if (session?.user) {
@@ -25,11 +21,7 @@ export const attachAuthContext: RequestHandler = async (req, _res, next) => {
   }
 };
 
-export const requireAuth: RequestHandler = (req, res, next) => {
-  if (!req.user) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
-
+export const requireAuth: RequestHandler = (req, _res, next) => {
+  if (!req.user) return next(new ApiError("Unauthorized", 401));
   next();
 };

@@ -38,7 +38,7 @@ export async function parseUploadedExpense(uploadId: string): Promise<void> {
     const base64 = fileBuffer.toString("base64");
     const dataUrl = `data:${upload.fileType};base64,${base64}`;
 
-const systemPrompt = `
+    const systemPrompt = `
 You are a parser that reads receipts/expense documents and returns JSON for creating expense records.
 Respond ONLY with valid JSON. Schema:
 {
@@ -61,9 +61,9 @@ Respond ONLY with valid JSON. Schema:
 If data is missing, use null. Prefer exact totals from the document.
 Include taxes, shipping, fees, discounts, and similar adjustments as separate line items when present. Use negative totals for discounts.
 When adding those adjustments, set their category to "Adjustments" unless a clearer category is present on the document.
-Do not include subtotal rows as line items; only include actual charges/fees/discounts/taxes/shipping as line items.`; 
+Do not include subtotal rows as line items; only include actual charges/fees/discounts/taxes/shipping as line items.`;
     // Encourage the model to craft a concise name and more detailed description for the expense.
-const namingPrompt = `
+    const namingPrompt = `
 Always propose:
 - "name": a short, human-friendly title (e.g., "Tapas at Casa Bonita", "Lumber from Home Depot").
 - "description": a concise summary with useful context (what the purchase was, where, for whom, notable details).
@@ -91,7 +91,6 @@ If the document lacks clear info, still infer reasonable placeholders rather tha
     });
 
     const parsedJson = JSON.parse(result.text);
-    console.log("Parsed JSON:", parsedJson);
     await prisma.uploadedExpense.update({
       where: { id: uploadId },
       data: {

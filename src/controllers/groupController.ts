@@ -17,15 +17,22 @@ const createGroupSchema = z.object({
 });
 
 const getGroupParamsSchema = z.object({
-  id: z.string().min(1, "Group id is required"),
+  groupId: z.string().min(1, "Group id is required"),
 });
 
 const createMemberSchema = z.object({
-  displayName: z.string().min(1, "Display name is required").max(200, "Display name is too long"),
+  displayName: z
+    .string()
+    .min(1, "Display name is required")
+    .max(200, "Display name is too long"),
   email: z.string().email().optional(),
 });
 
-export const listGroups = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const listGroups = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) {
       throw new ApiError("Unauthorized", 401);
@@ -64,13 +71,18 @@ export const listGroups = async (req: Request, res: Response, next: NextFunction
   }
 };
 
-export const createGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const createGroup = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) {
       throw new ApiError("Unauthorized", 401);
     }
 
-    const { name, type, startDate, endDate, location, description } = createGroupSchema.parse(req.body);
+    const { name, type, startDate, endDate, location, description } =
+      createGroupSchema.parse(req.body);
 
     const fallbackName = req.user.name ?? req.user.email ?? "Creator";
     const fallbackEmail = req.user.email ?? undefined;
@@ -101,11 +113,26 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
         .getTripSnapshot({
           tripId: group.id,
           userId: req.user.id,
-          sections: ["snapshot", "weather", "currency", "packing", "transportation"],
-          forceRefreshSections: ["snapshot", "weather", "currency", "packing", "transportation"],
+          sections: [
+            "snapshot",
+            "weather",
+            "currency",
+            "packing",
+            "transportation",
+          ],
+          forceRefreshSections: [
+            "snapshot",
+            "weather",
+            "currency",
+            "packing",
+            "transportation",
+          ],
         })
         .catch((error) => {
-          logger.error("Failed to precompute trip intel", { groupId: group.id, error });
+          logger.error("Failed to precompute trip intel", {
+            groupId: group.id,
+            error,
+          });
         });
     }
 
@@ -120,16 +147,20 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const getGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getGroup = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) {
       throw new ApiError("Unauthorized", 401);
     }
 
-    const { id } = getGroupParamsSchema.parse(req.params);
+    const { groupId } = getGroupParamsSchema.parse(req.params);
 
     const group = await prisma.group.findUnique({
-      where: { id },
+      where: { id: groupId },
       include: {
         members: true,
         expenses: {
@@ -147,7 +178,9 @@ export const getGroup = async (req: Request, res: Response, next: NextFunction):
       throw new ApiError("Group not found", 404);
     }
 
-    const isMember = group.members.some((member) => member.userId === req.user?.id);
+    const isMember = group.members.some(
+      (member) => member.userId === req.user?.id
+    );
     if (!isMember) {
       throw new ApiError("You are not a member of this group", 403);
     }
@@ -168,17 +201,21 @@ export const getGroup = async (req: Request, res: Response, next: NextFunction):
   }
 };
 
-export const addGroupMember = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const addGroupMember = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) {
       throw new ApiError("Unauthorized", 401);
     }
 
-    const { id } = getGroupParamsSchema.parse(req.params);
+    const { groupId } = getGroupParamsSchema.parse(req.params);
     const { displayName, email } = createMemberSchema.parse(req.body);
 
     const group = await prisma.group.findUnique({
-      where: { id },
+      where: { id: groupId },
       include: {
         members: true,
       },
@@ -188,21 +225,23 @@ export const addGroupMember = async (req: Request, res: Response, next: NextFunc
       throw new ApiError("Group not found", 404);
     }
 
-    const isMember = group.members.some((member) => member.userId === req.user?.id);
+    const isMember = group.members.some(
+      (member) => member.userId === req.user?.id
+    );
     if (!isMember) {
       throw new ApiError("You are not a member of this group", 403);
     }
 
     await prisma.groupMember.create({
       data: {
-        groupId: id,
+        groupId,
         displayName,
         email,
       },
     });
 
     const updatedGroup = await prisma.group.findUnique({
-      where: { id },
+      where: { id: groupId },
       include: {
         members: true,
         expenses: {
