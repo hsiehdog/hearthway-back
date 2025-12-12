@@ -2,21 +2,25 @@ import { AIRPORTS_BY_CODE } from "../constants/airports";
 import { AIRLINES_BY_CODE } from "../constants/airlines";
 import type { ResolvedFlight } from "../integrations/aeroApiFlightCandidates";
 
-const formatDateLabel = (value: Date, timeZone?: string | null) =>
-  value.toLocaleString("en-US", {
+const formatDateLabel = (value: Date | string, timeZone?: string | null) => {
+  const dateValue = typeof value === "string" ? new Date(value) : value;
+  return dateValue.toLocaleString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
     timeZone: timeZone || undefined,
   });
+};
 
-const formatTimeLabel = (value: Date, timeZone?: string | null) =>
-  value.toLocaleString("en-US", {
+const formatTimeLabel = (value: Date | string, timeZone?: string | null) => {
+  const dateValue = typeof value === "string" ? new Date(value) : value;
+  return dateValue.toLocaleString("en-US", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
     timeZone: timeZone || undefined,
   });
+};
 
 export function describeFlight(
   flight: Pick<
