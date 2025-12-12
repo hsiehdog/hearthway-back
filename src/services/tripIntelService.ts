@@ -235,7 +235,7 @@ const buildUserPromptForSection = (
     .replace(/{{trip_core_json}}/g, JSON.stringify(tripInput, null, 2));
 };
 
-export interface TripIntelResponse {
+interface TripIntelResponse {
   tripId: string;
   sections: Partial<Record<TripIntelSection, TripIntelSectionResponse>>;
 }

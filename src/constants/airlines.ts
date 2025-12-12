@@ -1,6 +1,6 @@
 // src/constants/airlines.ts
 
-export interface Airline {
+interface Airline {
   code: string; // IATA code (e.g., "UA")
   name: string; // Full airline name (e.g., "United Airlines")
   country?: string;
@@ -68,7 +68,7 @@ export const AIRLINES_BY_CODE: Record<string, Airline> = {
 // Reverse Mapping: Name -> Airline
 // --------------------------------------
 
-export const AIRLINES_BY_NAME: Record<string, Airline> = Object.values(
+const AIRLINES_BY_NAME: Record<string, Airline> = Object.values(
   AIRLINES_BY_CODE
 ).reduce((acc, airline) => {
   acc[airline.name.toLowerCase()] = airline;

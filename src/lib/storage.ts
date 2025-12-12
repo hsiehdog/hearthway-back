@@ -1,4 +1,9 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "node:stream";
 
@@ -21,7 +26,7 @@ export const storageConfig = {
   region: AWS_S3_REGION,
 };
 
-export const s3Client = new S3Client({
+const s3Client = new S3Client({
   region: AWS_S3_REGION,
   endpoint: AWS_S3_ENDPOINT,
   forcePathStyle: AWS_S3_FORCE_PATH_STYLE === "true",
@@ -67,7 +72,10 @@ export async function deleteFromS3(key: string): Promise<void> {
   await s3Client.send(command);
 }
 
-export async function generateSignedGetUrl(key: string, expiresInSeconds = 300): Promise<string> {
+export async function generateSignedGetUrl(
+  key: string,
+  expiresInSeconds = 300
+): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: AWS_S3_BUCKET,
     Key: key,

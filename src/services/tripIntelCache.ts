@@ -16,7 +16,7 @@ type CachedPayload = {
 export const getTripIntelFromCache = async (
   tripId: string,
   section: TripIntelSection,
-  inputHash: string,
+  inputHash: string
 ): Promise<TripIntelSectionResponse | null> => {
   await ensureRedisConnection();
   const key = tripIntelKey(tripId, section);
@@ -36,7 +36,7 @@ export const setTripIntelCache = async (
   tripId: string,
   section: TripIntelSection,
   inputHash: string,
-  payload: TripIntelSectionResponse,
+  payload: TripIntelSectionResponse
 ): Promise<void> => {
   await ensureRedisConnection();
   const key = tripIntelKey(tripId, section);
@@ -47,7 +47,7 @@ export const setTripIntelCache = async (
   await redis.set(key, JSON.stringify(value));
 };
 
-export const invalidateAllTripIntel = async (tripId: string): Promise<void> => {
+const invalidateAllTripIntel = async (tripId: string): Promise<void> => {
   await ensureRedisConnection();
   const pattern = tripIntelKey(tripId, "*" as TripIntelSection);
   const stream = redis.scanStream({ match: pattern, count: 100 });
@@ -65,6 +65,9 @@ export const invalidateAllTripIntel = async (tripId: string): Promise<void> => {
   }
 };
 
-export const buildTripIntelInputHash = (input: unknown, section: TripIntelSection): string => {
+export const buildTripIntelInputHash = (
+  input: unknown,
+  section: TripIntelSection
+): string => {
   return computeInputHash({ section, input });
 };

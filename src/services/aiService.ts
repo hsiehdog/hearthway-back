@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma";
 
 const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
 
-export type GenerateAiInput = {
+type GenerateAiInput = {
   prompt: string;
   userId: string;
 };

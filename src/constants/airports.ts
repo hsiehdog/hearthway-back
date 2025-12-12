@@ -1,6 +1,6 @@
 // src/constants/airports.ts
 
-export interface Airport {
+interface Airport {
   code: string; // IATA code: "SFO"
   name: string; // Full name: "San Francisco International Airport"
   city?: string;
@@ -1012,7 +1012,7 @@ export const AIRPORTS_BY_CODE: Record<string, Airport> = {
 // Reverse Mapping: Name -> Airport
 // --------------------------------------
 
-export const AIRPORTS_BY_NAME: Record<string, Airport> = Object.values(
+const AIRPORTS_BY_NAME: Record<string, Airport> = Object.values(
   AIRPORTS_BY_CODE
 ).reduce((acc, airport) => {
   acc[airport.name.toLowerCase()] = airport;
@@ -1023,18 +1023,18 @@ export const AIRPORTS_BY_NAME: Record<string, Airport> = Object.values(
 // Utility Helpers
 // --------------------------------------
 
-export function getAirportByCode(code: string): Airport | null {
+function getAirportByCode(code: string): Airport | null {
   if (!code) return null;
   return AIRPORTS_BY_CODE[code.toUpperCase()] ?? null;
 }
 
-export function getAirportByName(name: string): Airport | null {
+function getAirportByName(name: string): Airport | null {
   if (!name) return null;
   return AIRPORTS_BY_NAME[name.trim().toLowerCase()] ?? null;
 }
 
 /** Best-effort resolver from either code or name */
-export function resolveAirport(input: string): Airport | null {
+function resolveAirport(input: string): Airport | null {
   if (!input) return null;
 
   const byCode = getAirportByCode(input);
