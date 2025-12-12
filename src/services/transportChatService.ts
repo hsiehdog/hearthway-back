@@ -4,6 +4,7 @@ import env from "../config/env";
 import { prisma } from "../lib/prisma";
 import * as transportService from "./transportService";
 import { TRANSPORT_FLIGHT_PARSING_SYSTEM_PROMPT } from "../prompts/system/transport/flightParsing";
+import type { AssistantPayload, PendingAction } from "../ai/assistantPayload";
 
 import {
   buildHistoryMessages,
@@ -26,27 +27,6 @@ import { resolveMemberIdsFromNames } from "../auth/resolveMemberIdsFromNames";
 /* ------------------------------------------------------------------ */
 /* Types */
 /* ------------------------------------------------------------------ */
-
-type PendingAction =
-  | {
-      type: "create-flight";
-      flight: ResolvedFlight;
-      memberIds: string[];
-      options?: ResolvedFlight[];
-    }
-  | {
-      type: "choose-flight";
-      options: ResolvedFlight[];
-      memberIds: string[];
-    };
-
-export type AssistantPayload = {
-  message: string;
-  status: "clarify" | "confirm" | "created" | "error";
-  pendingAction?: PendingAction | null;
-  options?: ResolvedFlight[];
-  createdItemId?: string;
-};
 
 function toPayload(p: AssistantPayload): AssistantPayload {
   return {
@@ -273,6 +253,8 @@ async function handlePendingAction(args: {
         message:
           "Okay, I won't add that flight. Tell me the airline, flight number, and date to try again.",
         status: "clarify",
+        pendingAction: null, // ✅ explicit clear
+        resetContext: true, // ✅ prevents history reuse (optional but recommended)
       });
     }
 

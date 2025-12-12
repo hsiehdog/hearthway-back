@@ -1,23 +1,4 @@
-export type PendingAction =
-  | {
-      type: "create-flight";
-      flight: any;
-      memberIds: string[];
-      options?: any[];
-    }
-  | {
-      type: "choose-flight";
-      options: any[];
-      memberIds: string[];
-    };
-
-export type AssistantPayload = {
-  message: string;
-  status: "clarify" | "confirm" | "created" | "error";
-  pendingAction?: PendingAction | null;
-  options?: any[];
-  createdItemId?: string;
-};
+import type { AssistantPayload, PendingAction } from "./assistantPayload";
 
 export function parseAssistantPayload(
   raw: string | null
@@ -39,6 +20,11 @@ export function buildHistoryMessages(
 
   for (const record of records) {
     const parsed = parseAssistantPayload(record.response);
+
+    if (parsed?.resetContext) {
+      messages.length = 0;
+    }
+
     messages.push({ role: "user", content: record.prompt });
     messages.push({
       role: "assistant",
@@ -54,9 +40,19 @@ export function getLatestPendingAction(
 ): PendingAction | null {
   for (let i = sessions.length - 1; i >= 0; i -= 1) {
     const parsed = parseAssistantPayload(sessions[i]?.response ?? null);
-    const t = parsed?.pendingAction?.type;
-    if (t === "create-flight" || t === "choose-flight")
-      return parsed!.pendingAction as PendingAction;
+    if (!parsed) continue;
+
+    // ✅ hard stop: assistant explicitly reset context
+    if (parsed.resetContext) return null;
+
+    // ✅ hard stop: assistant explicitly cleared pending action
+    // (your toPayload() default sets pendingAction: null)
+    if (parsed.pendingAction === null) return null;
+
+    const t = parsed.pendingAction?.type;
+    if (t === "create-flight" || t === "choose-flight") {
+      return parsed.pendingAction as PendingAction;
+    }
   }
   return null;
 }
