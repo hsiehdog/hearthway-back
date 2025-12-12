@@ -12,6 +12,7 @@ import { AIRPORTS_BY_CODE } from "../constants/airports";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../middleware/errorHandler";
 import { transportChatService } from "../services/transportChatService";
+import { httpHandler } from "./httpHandler";
 
 type AeroSchedule = {
   scheduled_out?: string;
@@ -44,12 +45,8 @@ const transportChatSchema = z.object({
 const formatDateParam = (value: Date): string =>
   value.toISOString().slice(0, 10);
 
-export const createFlightItineraryItem = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
+export const createFlightItineraryItem = httpHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       throw new ApiError("Unauthorized", 401);
     }
@@ -219,22 +216,11 @@ export const createFlightItineraryItem = async (
     });
 
     res.status(201).json({ itineraryItem });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      next(new ApiError("Invalid request", 400, error.flatten()));
-      return;
-    }
-
-    next(error);
   }
-};
+);
 
-export const getMemberTransport = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
+export const getMemberTransport = httpHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       throw new ApiError("Unauthorized", 401);
     }
@@ -296,22 +282,11 @@ export const getMemberTransport = async (
       };
     });
     res.json({ transports });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      next(new ApiError("Invalid request", 400, error.flatten()));
-      return;
-    }
-
-    next(error);
   }
-};
+);
 
-export const handleTransportChat = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
+export const handleTransportChat = httpHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       throw new ApiError("Unauthorized", 401);
     }
@@ -350,22 +325,11 @@ export const handleTransportChat = async (
       options: payload.options,
       createdItemId: payload.createdItemId,
     });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      next(new ApiError("Invalid request", 400, error.flatten()));
-      return;
-    }
-
-    next(error);
   }
-};
+);
 
-export const getTransportChatHistory = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
+export const getTransportChatHistory = httpHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       throw new ApiError("Unauthorized", 401);
     }
@@ -396,12 +360,5 @@ export const getTransportChatHistory = async (
     });
 
     res.json({ history });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      next(new ApiError("Invalid request", 400, error.flatten()));
-      return;
-    }
-
-    next(error);
   }
-};
+);
