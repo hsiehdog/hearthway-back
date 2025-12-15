@@ -7,11 +7,7 @@ export type PendingAction =
       memberIds: string[];
       options?: ResolvedFlight[];
     }
-  | {
-      type: "choose-flight";
-      options: ResolvedFlight[];
-      memberIds: string[];
-    };
+  | { type: "choose-flight"; options: ResolvedFlight[]; memberIds: string[] };
 
 export type AssistantPayload = {
   message: string;

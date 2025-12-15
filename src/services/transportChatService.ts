@@ -45,7 +45,7 @@ const MODEL_PREFIX = "flight-chat";
 const HISTORY_LIMIT = 10;
 
 const yesNo = {
-  yes: ["yes", "yep", "sure", "confirm", "yeah", "yup"],
+  yes: ["yes", "yep", "sure", "confirm", "yeah", "yup", "ok", "okay"],
   no: ["no", "nah", "nope", "cancel", "stop"],
 };
 
@@ -244,36 +244,111 @@ async function handlePendingAction(args: {
   if (!pendingAction) return null;
 
   const normalized = message.trim().toLowerCase();
-  const isYes = yesNo.yes.some((t) => normalized.includes(t));
-  const isNo = yesNo.no.some((t) => normalized.includes(t));
 
+  const isYes = yesNo.yes.some(
+    (t) => normalized === t || normalized.includes(t)
+  );
+  const isNo = yesNo.no.some((t) => normalized === t || normalized.includes(t));
+
+  // ---------- create-flight: ALWAYS single flight confirm ----------
   if (pendingAction.type === "create-flight") {
     if (isNo) {
       return toPayload({
         message:
           "Okay, I won't add that flight. Tell me the airline, flight number, and date to try again.",
         status: "clarify",
-        pendingAction: null, // ✅ explicit clear
-        resetContext: true, // ✅ prevents history reuse (optional but recommended)
+        pendingAction: null,
+        resetContext: true,
       });
     }
 
     if (!isYes) {
       return toPayload({
-        message: "Should I add this flight? Reply yes or no.",
+        message: 'Should I add this flight? Reply "yes" or "no".',
         status: "clarify",
         pendingAction,
       });
     }
 
-    const flights = pendingAction.options?.length
-      ? pendingAction.options
-      : [pendingAction.flight];
+    const f = pendingAction.flight;
+
+    const created = await transportService.createFlightItineraryItem({
+      groupId,
+      airlineCode: f.airlineCode,
+      flightNumber: f.flightNumber,
+      departureDate: new Date(f.departureTime),
+      memberIds: pendingAction.memberIds,
+    });
+
+    return toPayload({
+      message: `Added ${describeFlight(f)}`,
+      status: "created",
+      createdItemId: created.id,
+      pendingAction: null,
+    });
+  }
+
+  // ---------- choose-flight: supports one / many / all / none ----------
+  if (pendingAction.type === "choose-flight") {
+    const wantsAll = [
+      "all",
+      "both",
+      "everything",
+      "add them all",
+      "add both",
+    ].some((t) => normalized.includes(t));
+
+    // Important: don't treat any random "no" as cancel unless it's clearly "none/cancel"
+    const wantsNone = ["none", "neither", "cancel", "stop"].some(
+      (t) => normalized === t || normalized.includes(t)
+    );
+
+    // Optional: also accept a plain "no" as "none" in this state
+    const wantsNoneByNo =
+      !wantsAll &&
+      (normalized === "no" || normalized === "nope") &&
+      (pendingAction.options?.length ?? 0) > 0;
+
+    if (wantsNone || wantsNoneByNo) {
+      return toPayload({
+        message: "Okay — I won’t add any of those flights.",
+        status: "clarify",
+        pendingAction: null,
+        resetContext: true,
+      });
+    }
+
+    let selectedFlights: ResolvedFlight[] = [];
+
+    if (wantsAll) {
+      selectedFlights = pendingAction.options as ResolvedFlight[];
+    } else {
+      // Parse numeric selections: "1", "2", "1 and 2", "1,2"
+      const matches = normalized.match(/\d+/g) ?? [];
+      const indices = matches
+        .map((m) => Number(m) - 1)
+        .filter((i) => i >= 0 && i < pendingAction.options.length);
+
+      const unique = Array.from(new Set(indices));
+      selectedFlights = unique
+        .map((i) => pendingAction.options[i])
+        .filter(Boolean) as ResolvedFlight[];
+    }
+
+    if (!selectedFlights.length) {
+      return toPayload({
+        message: `Please reply with a choice:\n${summarizeFlightOptions(
+          pendingAction.options as ResolvedFlight[]
+        )}\n\nExamples: "1", "2", "1 and 2", "both", or "none".`,
+        status: "clarify",
+        pendingAction,
+      });
+    }
 
     const ids: string[] = [];
     const lines: string[] = [];
 
-    for (const f of flights) {
+    for (const f of selectedFlights) {
       const created = await transportService.createFlightItineraryItem({
         groupId,
         airlineCode: f.airlineCode,
@@ -292,35 +367,7 @@ async function handlePendingAction(args: {
       }:\n${lines.join("\n")}`,
       status: "created",
       createdItemId: ids[0],
-    });
-  }
-
-  if (pendingAction.type === "choose-flight") {
-    const index = Number(message.match(/(\d+)/)?.[1]) - 1;
-    const selected = pendingAction.options[index];
-
-    if (!selected) {
-      return toPayload({
-        message: `Please choose a flight:\n${summarizeFlightOptions(
-          pendingAction.options
-        )}`,
-        status: "clarify",
-        pendingAction,
-      });
-    }
-
-    const created = await transportService.createFlightItineraryItem({
-      groupId,
-      airlineCode: selected.airlineCode,
-      flightNumber: selected.flightNumber,
-      departureDate: new Date(selected.departureTime),
-      memberIds: pendingAction.memberIds,
-    });
-
-    return toPayload({
-      message: `Added ${describeFlight(selected)}`,
-      status: "created",
-      createdItemId: created.id,
+      pendingAction: null,
     });
   }
 
@@ -383,11 +430,32 @@ function decideNextStep(args: {
   }
 
   if (allFlights.length > 1) {
+    const uniqueDates = new Set(
+      allFlights.map((f) => f.departureTime.toISOString().slice(0, 10))
+    );
+
+    // A) Different days (likely outbound + return): let user choose both/one/none
+    if (uniqueDates.size > 1) {
+      return {
+        message: `I found flights on different days (likely outbound + return):\n${summarizeFlightOptions(
+          allFlights
+        )}\n\nReply with:\n- "1" or "2" to add one\n- "1 and 2" (or "both") to add both\n- "none" to add neither`,
+        status: "clarify",
+        options: allFlights,
+        pendingAction: {
+          type: "choose-flight",
+          options: allFlights,
+          memberIds,
+        },
+      };
+    }
+
+    // B) Same day multiple candidates: choose one/multiple/none
     return {
-      message: `I found multiple flights:\n${summarizeFlightOptions(
+      message: `I found multiple flights on the same day. Which one should I add?\n${summarizeFlightOptions(
         allFlights
-      )}`,
-      status: "confirm",
+      )}\n\nReply with a number (e.g. "1"), or "1 and 2", or "none".`,
+      status: "clarify",
       options: allFlights,
       pendingAction: {
         type: "choose-flight",
